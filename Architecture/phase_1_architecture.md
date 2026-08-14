@@ -791,6 +791,227 @@ To maintain separation of concerns, the frontend is bound strictly to specific o
                          FastAPI Backend
 ```
 
+### 4.26 Profile Language Selection
+
+The frontend dynamically loads language configurations from the backend, ensuring it relies on the database rather than hardcoded client values.
+
+#### Selection Flow:
+
+```text
+FastAPI
+   ↓ (GET supported languages)
+React Frontend
+   ↓
+Displays "Preferred Language" dropdown
+   ↓
+User selects "Marathi"
+   ↓
+Frontend sends the selected `language_id` (e.g., 5)
+   ↓
+FastAPI resolves: language_id → language_configurations → Marathi → "mr"
+```
+
+*React sends the database ID, never the raw string code.*
+
+### 4.27 Language Dropdown UI
+
+The UI displays human-readable, native scripts to maximize user-friendliness. 
+
+```text
+Select your preferred language
+
+┌─────────────────────────────┐
+│ English                     │
+│ हिन्दी                        │ 
+│ मराठी                       │ 
+│ ଓଡ଼ିଆ                        │
+│ Hinglish                    │
+│ Odlish                      │
+└─────────────────────────────┘
+```
+
+### 4.28 Variant Selection
+
+For languages where variants are relevant (like Odia vs Odlish), the UI simplifies the technical choices into natural user questions.
+
+Instead of asking the user to select technical variants:
+
+```text
+Language: [ Odia ▼ ]
+Writing style: [ Standard Odia ▼ ] / [ Odlish ▼ ]
+```
+
+The frontend uses a highly user-friendly approach:
+
+```text
+Language: [ Odia ▼ ]
+
+How do you normally type?
+ ◉ Odia script
+ ◯ English letters
+```
+
+The backend then maps this seamlessly:
+
+- `Odia` + `Odia script` → **Standard Variant**
+- `Odia` + `English letters` → **Odlish Variant**
+
+---
+
+### 4.29 Important Frontend Rule
+
+> ⚠️ **Architectural Boundary:** The frontend should **not** perform language detection or translation.
+
+
+| React's Responsibility      | FastAPI / AI Layer's Responsibility |
+| --------------------------- | ----------------------------------- |
+| UI State & Display          | Language Detection                  |
+| User Input & Interaction    | Language Resolution                 |
+| WebSocket Connection        | Translation Processing              |
+| Presenting target languages | Message Routing                     |
+
+
+---
+
+### 4.30 Chat Message Flow
+
+The frontend acts purely as a presentation and transmission layer. 
+
+```text
+User A types: "mu aji office jibi"
+      ↓
+React simply sends the raw Message to FastAPI
+```
+
+*React does NOT need to determine if it is `or`, `Odlish`, or `mr`. The backend handles all detection.*
+
+---
+
+### 4.31 Message Display
+
+Automatic translation presentation pipeline:
+
+- **User B Preferred language:** Marathi
+- **Backend Delivers:** `translated_message`
+- **React Action:** Simply displays the text.
+
+```text
+User A sees: "mu aji office jibi"
+User B sees: "मी आज ऑफिसला जाईन."
+```
+
+*The user does not need to click a "Translate" button or manually select "Marathi" for every message.*
+
+---
+
+### 4.32 Group Chat UI
+
+Every user in a 50+ member group receives the message instantly translated according to their specific profile preference.
+
+```text
+┌───────────────────────────────────┐
+│ Project Team                      │
+│ 50 members                        │
+├───────────────────────────────────┤
+│                                   │
+│ Vivek                             │
+│ mu aji office jibi                │
+│                                   │
+│ Rahul                             │
+│ <translated according to Rahul>   │
+│                                   │
+│ Priya                             │
+│ <translated according to Priya>   │
+│                                   │
+├───────────────────────────────────┤
+│ Type message...              [➤] │
+└───────────────────────────────────┘
+```
+
+---
+
+### 4.33 Frontend Architecture
+
+The updated React application structure, routing all capabilities strictly through FastAPI:
+
+```text
+React + TypeScript
+        │
+        ├── Authentication & Registration
+        ├── Profile & Language Selection
+        ├── Chat List
+        ├── Private Chat & Group Chat
+        ├── Message Input & Display
+        ├── Typing Indicator
+        ├── Online Status & Message Status
+        ├── Search & Room Creation
+        ├── Language Request
+        └── Account Deactivation & Deletion
+                 │
+                 ▼
+              FastAPI
+```
+
+---
+
+### 4.34 Updated End-to-End Architecture
+
+The complete system architecture, reflecting the proper separation of AI orchestration, data management, and client presentation:
+
+```text
+                        React + TypeScript
+                               │
+                    REST API + WebSocket
+                               │
+                               ▼
+                         FastAPI Backend
+                               │
+          ┌────────────────────┼────────────────────┐
+          │                    │                    │
+          ▼                    ▼                    ▼
+     PostgreSQL              Redis              LangGraph
+          │                                         │
+          │                              ┌──────────┼──────────┐
+          │                              ▼          ▼          ▼
+          │                          Language   Translation Validation
+          │                            Agent       Agent      Agent
+          │                              │          │
+          │                              └────┬─────┘
+          │                                   ▼
+          │                                  LLM
+          │
+          └─────────────────────────────────────────┐
+                                                    │
+                                                    ▼
+                                             Message Routing
+                                                    │
+                                                    ▼
+                                               WebSocket
+                                                    │
+                                                    ▼
+                                             React Users
+```
+
+---
+
+### 4.35 The Most Important Change: Responsibility Matrix
+
+The system responsibilities are now completely locked and clearly separated, establishing the final blueprint before implementation.
+
+
+| System Component | Core Question It Answers                           | Primary Action                                                          |
+| ---------------- | -------------------------------------------------- | ----------------------------------------------------------------------- |
+| **React**        | *"What did the user select?"*                      | Captures input, displays messages seamlessly.                           |
+| **PostgreSQL**   | *"What is that language's configuration?"*         | Stores profiles, room states, and translation configurations.           |
+| **FastAPI**      | *"What are the source and target configurations?"* | Coordinates routing, auth, database, and initiates AI workflows.        |
+| **LangGraph**    | *"What AI processing is required?"*                | Orchestrates the fallback detectors and translation agents.             |
+| **LLM**          | *"Translate from source → target."*                | Executes the actual natural language translation.                       |
+| **Redis**        | *"Can we reuse an existing translation?"*          | Caches translations to bypass LLM latency and manages real-time states. |
+| **WebSocket**    | *"Deliver the translation to the right users."*    | Pushes the finalized, personalized message to connected clients.        |
+
+
+---
+
 ## 5. Backend Architecture
 
 ### 5.1 Backend Technology
@@ -822,29 +1043,22 @@ React + TypeScript
 
 ### 5.2 Backend Responsibilities
 
-FastAPI will be responsible for managing the following domains:
+FastAPI will be responsible for:
 
-- **Identity & Security:**
-  - Authentication & Authorization
-  - Session management
-  - Encryption/decryption coordination
-  - Account deactivation, reactivation, and permanent deletion
-- **User & Room Management:**
-  - User and Profile management
-  - Chat room and Room member management
-  - Admin operations
-- **Messaging & Communication:**
-  - Message management and Routing
-  - WebSocket communication
-  - Attachment management
-- **Language & AI Orchestration:**
-  - Language configuration, preferences, and request management
-  - Translation orchestration
-  - LangGraph integration and Agent orchestration
-  - Tool calling and MCP integration
-- **Data & Operations:**
-  - PostgreSQL and Redis communication
-  - Logging, Error handling, and Performance monitoring
+- Authentication & Authorization
+- User & Profile management
+- Language configuration, preference management, and request management
+- Chat room & Room member management
+- Message management & Message routing
+- Translation orchestration
+- WebSocket, PostgreSQL, and Redis communication
+- LangGraph integration & Agent orchestration
+- Tool calling & MCP integration
+- Encryption/decryption coordination
+- Attachment & Session management
+- Account deactivation, reactivation, and deletion
+- Admin operations
+- Logging, Error handling, and Performance monitoring
 
 ---
 
@@ -903,7 +1117,7 @@ The API layer will expose REST endpoints for operations that do not require cont
 - Returning standardized responses
 - Error handling
 
-> **Note:** The API layer should not contain complex business logic. Business logic must strictly remain inside the Application/Service layer.
+> **Note:** The API layer should not contain complex business logic. Business logic must strictly remain inside the service/application layer.
 
 ---
 
@@ -913,8 +1127,7 @@ WebSocket will be responsible for real-time communication. It will support:
 
 - Sending and receiving messages
 - Translated message delivery
-- Typing indicators
-- Online/offline status updates
+- Typing indicators & Online/offline status
 - Message delivery and read statuses
 - Real-time room events
 - Connection management, disconnection handling, and reconnection support
@@ -940,7 +1153,7 @@ Chat Service
 
 ### 5.6 Authentication
 
-The backend will implement **JWT-based authentication**. Authentication will be required for protected application operations. The backend will validate the authentication token before allowing access to protected resources.
+The backend will implement **JWT-based authentication**. Authentication will be required for protected application operations.
 
 #### Authentication Flow:
 
@@ -975,25 +1188,27 @@ FastAPI will enforce authorization for:
 - Account & Administrative operations
 - Attachments & Message access
 
-*Example: A normal user cannot manage global language configurations. Only authorized administrators will have access to those operations.*
+*A normal user must not be able to manage global language configurations. Only authorized administrators will have access to those operations.*
 
 ---
 
 ### 5.8 User Management Service
 
-The User Service will communicate with PostgreSQL through the data-access layer to manage:
+The User Service will manage:
 
 - Registration & Login support
-- Profile retrieval & Profile update
-- Preferred language & Language variant preference
+- Profile retrieval & Profile updates
+- Preferred language & Language variant preferences
 - User search
 - Account status (deactivation, reactivation, permanent deletion)
+
+The service will communicate with PostgreSQL through the data-access layer.
 
 ---
 
 ### 5.9 Account Deactivation and Deletion
 
-The backend will maintain separate account states. A scheduled/background process will eventually identify accounts whose recovery period has expired and process them.
+The backend will maintain separate account states. A scheduled/background process will identify accounts whose 30-day recovery period has expired and process them.
 
 #### Deactivation Flow:
 
@@ -1029,98 +1244,355 @@ PERMANENT DELETION
 
 The Language Service will manage:
 
-- Supported languages & Language codes
-- Human-readable language names
-- Language variants & Romanized language variants
+- Supported languages, Language codes, Human-readable & Native language names
+- Language variants, Romanized language variants, Script information
 - Mixed-language configurations
-- User language preferences
-- Language requests, validation, and activation/deactivation
+- User language preferences & Language requests
+- Language validation & Language activation/deactivation
 
-The frontend displays user-friendly names, while the backend utilizes internal codes:
+The frontend shows user-friendly names, while the backend works with internal codes:
 
 
-| Frontend Shows | Backend Processes      |
+| Frontend Shows | Backend Uses           |
 | -------------- | ---------------------- |
 | Marathi        | `language_code = "mr"` |
 
 
+Users will not be required to manually understand or enter language codes.
+
 ---
 
-### 5.11 Language Request Flow
+### 5.11 Language Configuration Structure
 
-When a user requests a language or variant that is not available, the LLM/Agent will **not** directly insert an unverified language into production. It must follow this flow:
+The language configuration contains information required by both the application and AI translation workflow.
 
 ```text
-User
-  ↓
-React
-  ↓
-FastAPI
-  ↓
-Language Request Service
-  ↓
-Validation / AI-assisted verification where required
-  ↓
-Admin Review
-  ↓
-Approved
-  ↓
 Language Configuration
-  ↓
-PostgreSQL
+│
+├── language_id
+├── language_code
+├── language_name
+├── native_name
+├── script
+├── variant
+├── status
+└── translation_supported
 ```
 
----
+**Examples:**
 
-### 5.12 Chat Room Service
+*Standard Hindi:*
 
-The Chat Room Service determines which users belong to a room and manages:
+- Language: Hindi (`hi`) | Native Name: हिन्दी | Script: Devanagari | Variant: Standard
 
-- Private & Group conversations
-- Room creation & Room updates
-- Room members & Member permissions
-- Room status & Room metadata
+*Standard Odia:*
 
----
+- Language: Odia (`or`) | Native Name: ଓଡ଼ିଆ | Script: Odia | Variant: Standard
 
-### 5.13 Message Service
+*Odlish (Romanized Chat):*
 
-The message service will **not** allow the frontend to directly insert records into PostgreSQL. It is strictly responsible for managing:
+- Language: Odia (`or`) | Script: Latin | Variant: Odlish
 
-- Incoming messages & Message validation
-- Message persistence & Message retrieval
-- Message status & Message metadata
-- Attachment & Translation association
+*The same language code may therefore have multiple supported variants or scripts.*
 
 ---
 
-### 5.14 Message Routing Service
+### 5.12 Language Identification Architecture
 
-The Message Routing Service is responsible for determining where a message should go. 
+The application will use a hybrid language-identification approach. For incoming messages, the language-identification layer will attempt to determine:
 
-> ⚠️ **Boundary Rule:** The LLM will **not** be responsible for recipient routing. This separation is vital for security, correctness, and scalability.
+- Language & Language code
+- Language variant & Script
+- Mixed-language characteristics
+- Detection confidence
 
-#### Routing Determination Flow:
+#### Example Detection:
 
 ```text
-Who sent it?
-        ↓
-Which room?
-        ↓
-Who are the recipients?
-        ↓
-What is each recipient's preferred language?
-        ↓
-Which unique target languages are required?
-        ↓
-Which translated message should be delivered to which recipient?
+Input:      "mu aji office jibi"
+
+Detected:   Language   = Odia
+            Code       = or
+            Variant    = Odlish
+            Script     = Latin
+            Confidence = High
 ```
 
 ---
 
-### 5.15 Translation Orchestration
+### 5.13 Fast Language Detection Strategy
 
-FastAPI will coordinate the translation workflow through LangGraph. 
+Language detection should not require an LLM call for every message. The application will use a fast detection layer first.
+
+```text
+Incoming Message
+       ↓
+Fast Language Detection
+       ↓
+Confidence Check
+       │
+       ├── High Confidence
+       │       ↓
+       │   Accept Detection
+       │
+       └── Low Confidence / Ambiguous
+               ↓
+            LangGraph
+               ↓
+          Language Agent
+               ↓
+              LLM
+               ↓
+       Confirm / Resolve Language
+```
+
+The LLM will primarily be used when the message is: Ambiguous, Mixed-language, Romanized, Hinglish, Odlish, or difficult for the fast detector to classify. This reduces unnecessary LLM calls and improves latency.
+
+---
+
+### 5.14 Language Code Resolution
+
+Language codes will be used internally by the application (e.g., English → `en`, Hindi → `hi`, Marathi → `mr`). The backend will use the language code to retrieve the complete language configuration from PostgreSQL.
+
+```text
+language_code = "mr"
+        ↓
+PostgreSQL
+        ↓
+Language Configuration
+        ↓
+Language Name = Marathi
+Script = Devanagari
+Variant = Standard
+```
+
+---
+
+### 5.15 Language Code → Language Name Workflow
+
+Before translation, FastAPI will resolve the internal language codes into their corresponding language configurations. The Translation Agent should not be responsible for determining what a language code means.
+
+```text
+User Message
+      ↓
+FastAPI
+      ↓
+Source Language Detection
+      ↓
+Source Language Code
+      ↓
+Find Recipients
+      ↓
+PostgreSQL
+      ↓
+Fetch Each Recipient's Preferred Language Code
+      ↓
+Language Configuration Lookup
+      ↓
+Resolve Language Codes
+      ↓
+Source Language Name + Target Language Name + Variant / Script information
+      ↓
+Translation Agent → LLM
+```
+
+---
+
+### 5.16 Complete Language Resolution and Translation Workflow
+
+This is the final language-processing workflow for the application.
+
+*Scenario: User A (Odlish) sends `"mu aji office jibi"`. User B prefers Marathi.*
+
+```text
+                     User A
+                        │
+                        ▼
+              "mu aji office jibi"
+                        │
+                        ▼
+                     FastAPI
+                        │
+                        ▼
+             Fast Language Detection
+                        │
+                  Is confidence
+                     sufficient?
+                    /          \
+                  YES           NO
+                   │             │
+                   │          LangGraph
+                   │             │
+                   │       Language Agent
+                   │             │
+                   │            LLM
+                   │             │
+                   └──────┬──────┘
+                          ▼
+               Source Language Result
+                          │
+                Code = "or"
+                Language = Odia
+                Variant = Odlish
+                Script = Latin
+                          │
+                          ▼
+                   Find Recipients
+                          │
+                          ▼
+                     PostgreSQL
+                          │
+                          ▼
+             User B Preferred Language
+                          │
+                     Code = "mr"
+                          │
+                          ▼
+              Language Configuration
+                          │
+                          ▼
+               Code "mr" → Marathi
+                          │
+                          ▼
+                  Translation Agent
+                          │
+                          ▼
+                         LLM
+                          │
+              ┌───────────┴───────────┐
+              │                       │
+          Source                    Target
+           Odia                      Marathi
+            or                         mr
+          Odlish
+          Latin
+              │                       │
+              └───────────┬───────────┘
+                          ▼
+                    Translation
+                          │
+                          ▼
+                    Redis Cache
+                          │
+                          ▼
+                     WebSocket
+                          │
+                          ▼
+                       User B
+```
+
+This gives the model explicit information about what language it is translating from and to.
+
+---
+
+### 5.17 Preferred Language Resolution
+
+The preferred language must **NOT** be determined by the LLM. The user's preferred language is stored in PostgreSQL.
+
+```text
+User B → PostgreSQL → preferred_language_code = "mr"
+```
+
+FastAPI retrieves the preference and resolves it through the Language Configuration. No LLM call is required for this operation, improving both performance and reliability.
+
+---
+
+### 5.18 Translation Request Construction
+
+FastAPI / the Translation Service will prepare the translation context before invoking the Translation Agent. 
+
+```text
+Source:
+Language Name = Odia
+Language Code = or
+Variant = Odlish
+Script = Latin
+
+Target:
+Language Name = Marathi
+Language Code = mr
+Variant = Standard
+Script = Devanagari
+
+Message:
+mu aji office jibi
+```
+
+The model is therefore not responsible for resolving internal user preferences.
+
+---
+
+### 5.19 Multiple Target Languages
+
+A single message may need to be translated into multiple languages based on current room members.
+
+```text
+Room:
+User B → Marathi → mr
+User C → Hindi   → hi
+User D → English → en
+User E → Odia    → or
+```
+
+FastAPI will identify and resolve the unique target languages, and the translation workflow will process the required translations.
+
+---
+
+### 5.20 50+ User Group Chat Optimization
+
+For a group with 50 or more users, the system will **NOT** automatically send 50 independent translation requests to the LLM.
+
+```text
+50 Users:
+20 → Marathi | 15 → Hindi | 10 → English | 3 → Odia | 2 → Bengali
+```
+
+The system identifies 5 unique target languages. The resulting translations can be reused for all users who have the same target language configuration.
+
+```text
+                 One Original Message
+                         │
+                         ▼
+                  Target Languages
+                         │
+        ┌────────┬───────┼───────┬────────┐
+        ▼        ▼       ▼       ▼        ▼
+     Marathi   Hindi   English   Odia   Bengali
+        │        │       │       │        │
+        └────────┴───────┼───────┴────────┘
+                         ▼
+                  Recipient Routing
+                         │
+            ┌────────────┴────────────┐
+            ▼                         ▼
+      Same-language users       Other-language users
+```
+
+---
+
+### 5.21 Translation Cache
+
+Before sending a translation request to the LLM, the backend will check Redis where appropriate.
+
+```text
+Message → Source Language → Target Language → Translation Cache Key
+  ↓
+Redis Cache?
+  │
+  ├── YES → Reuse Translation
+  │
+  └── NO
+        ↓
+      LangGraph → LLM → Translation → Store in Redis
+```
+
+Caching helps reduce: LLM calls, Translation latency, Compute requirements, Resource consumption, and API costs.
+
+---
+
+### 5.22 Translation Orchestration
+
+FastAPI will coordinate the translation workflow through LangGraph.
 
 ```text
 Incoming Message
@@ -1129,49 +1601,48 @@ FastAPI
        ↓
 Message Service
        ↓
+Source Language Detection
+       ↓
 Recipient Resolution
        ↓
-Language Requirements
+Preferred Language Lookup
+       ↓
+Language Code Resolution
        ↓
 Redis Cache Check
        ↓
-LangGraph
-       ↓
-AI Agents
-       ↓
-LLM
-       ↓
-Translation Result
-       ↓
-Validation
-       ↓
-Store / Cache
-       ↓
-Message Routing
-       ↓
-WebSocket
-       ↓
-Recipients
+Cache Hit?
+       │
+       ├── YES → Reuse Translation
+       │
+       └── NO
+             ↓
+          LangGraph → Translation Agent → LLM
+             ↓
+       Translation Result
+             ↓
+          Validation
+             ↓
+        Store / Cache
+             ↓
+       Message Routing
+             ↓
+          WebSocket
+             ↓
+          Recipients
 ```
 
 ---
 
-### 5.16 LangGraph Integration
+### 5.23 LangGraph Integration
 
-LangGraph will provide structured orchestration for AI-related processing. FastAPI will invoke the LangGraph workflow when AI processing is required. LangGraph will coordinate specialized agents rather than putting all AI responsibilities into one large function. 
-
-Potential responsibilities include:
-
-- Language & Language variant detection
-- Translation planning & execution
-- Translation validation
-- AI-related decision support
+LangGraph coordinates specialized agents rather than putting all AI responsibilities into one large function. Potential responsibilities include: Language detection fallback, Language variant detection, Translation planning/execution/validation, and AI-related decision support.
 
 ---
 
-### 5.17 Agent Architecture
+### 5.24 Agent Architecture
 
-The application will use specialized agents where they provide clear benefits. Agents will **not** directly bypass application security or database authorization.
+The application will use specialized agents where they provide a clear benefit. Agents will not directly bypass application security or database authorization.
 
 ```text
                        LangGraph
@@ -1189,182 +1660,96 @@ The application will use specialized agents where they provide clear benefits. A
 
 ---
 
-### 5.18 Tool Calling
+### 5.25 Tool Calling
 
-Agents may use controlled tools when required. Tools will have clearly defined inputs and outputs and will **not** be allowed unrestricted access to the entire application.
-
-Examples include:
+Agents may use controlled tools with clearly defined inputs and outputs:
 
 - Language configuration & User preference lookup
 - Translation cache lookup & storage
 - Validation services
 - Application-specific operations
 
+Tools will not have unrestricted access to the entire application.
+
 ---
 
-### 5.19 MCP Integration
+### 5.26 MCP Integration
 
-MCP will provide a standardized mechanism for exposing selected tools or external capabilities to the AI workflow. It will be introduced only where it provides real architectural benefit and will **not** replace normal FastAPI business logic.
+MCP provides a standardized mechanism for exposing selected tools or external capabilities to the AI workflow. It will not replace normal FastAPI business logic.
 
 ```text
-LangGraph
-    ↓
-Agent
-    ↓
-MCP
-    ↓
-Approved Tool / Service
-    ↓
-Result
-    ↓
-Agent
+LangGraph → Agent → MCP → Approved Tool / Service → Result → Agent
 ```
 
 ---
 
-### 5.20 PostgreSQL Integration
+### 5.27 PostgreSQL Integration
 
-FastAPI will communicate with PostgreSQL through the application's data-access/repository layer to manage persistent information:
+FastAPI communicates with PostgreSQL to manage persistent data:
 
-- Users & Sessions
+- Users, Sessions, Chat rooms, Room members
 - Language configurations & Language preferences
-- Chat rooms & Room members
-- Messages, Translations, & Message statuses
-- Attachments
-- Agent & Tool execution information
+- Messages, Translations, Message status
+- Attachments, Agent/Tool execution information
 
 ---
 
-### 5.21 Redis Integration
+### 5.28 Redis Integration
 
-Redis will be used for short-lived and high-speed application data. It will **not** replace PostgreSQL as the permanent system of record. Uses include:
+Redis will be used for short-lived and high-speed application data. It will **not** replace PostgreSQL as the permanent system of record.
 
 - Translation caching
-- Presence information (Online/offline state, Typing state)
-- WebSocket coordination
-- Temporary session-related data & frequently accessed temporary data
-- Rate limiting
+- Presence information (Online/offline, Typing state)
+- WebSocket coordination & Rate limiting
+- Temporary session-related data
 
 ---
 
-### 5.22 Translation Cache
+### 5.29 Encryption Boundary
 
-Before sending a translation request to the LLM, the backend will check Redis. This reduces LLM calls, translation latency, compute requirements, and API costs.
-
-```text
-Message
-  ↓
-Target Language
-  ↓
-Redis Cache?
-  │
-  ├── YES → Reuse Translation
-  │
-  └── NO
-        ↓
-      LangGraph
-        ↓
-       LLM
-        ↓
-    Translation
-        ↓
-   Store in Redis
-```
-
----
-
-### 5.23 50+ User Group Chat (Target Optimization)
-
-For large groups, the system will **not** automatically make 50 separate LLM translation requests. Instead, it aggregates unique translation requirements and generates them once.
-
-```text
-50 Users
-   │
-   ├── 20 → Marathi
-   ├── 15 → Hindi
-   ├── 10 → English
-   ├── 3  → Odia
-   └── 2  → Bengali
-```
-
-*Result: The system only requests 5 unique translations, caches them in Redis, and routes them to the appropriate recipients.*
-
----
-
-### 5.24 Encryption Boundary
-
-The backend will coordinate encryption before sensitive chat data is persisted. Encryption keys will **not** be stored directly alongside the encrypted message data.
+The backend will coordinate encryption before sensitive chat data is persisted. Encryption keys will not be stored directly alongside encrypted message data.
 
 #### Persistence Flow:
 
 ```text
-Message
-   ↓
-FastAPI
-   ↓
-Encryption Service
-   ↓
-Encrypted Data
-   ↓
-PostgreSQL
+Message → FastAPI → Encryption Service → Encrypted Data → PostgreSQL
 ```
 
 #### Retrieval Flow:
 
 ```text
-PostgreSQL
-   ↓
-Encrypted Data
-   ↓
-FastAPI
-   ↓
-Authorization Check
-   ↓
-Decryption
-   ↓
-React
+PostgreSQL → Encrypted Data → FastAPI → Authorization Check → Decryption → React
 ```
 
 ---
 
-### 5.25 Attachment Handling
+### 5.30 Attachment Handling
 
-Actual media files should not be stored directly inside PostgreSQL. FastAPI will coordinate attachment uploads to object storage (e.g., AWS S3).
+FastAPI coordinates attachment uploads to object storage (e.g., AWS S3). Actual media files should not be stored directly inside PostgreSQL.
 
 ```text
-React
-  ↓
-FastAPI
-  ↓
-Validate User / Room Permission
-  ↓
-Validate Attachment
-  ↓
-Object Storage (S3)
-  ↓
-Attachment Metadata
-  ↓
-PostgreSQL
+React → FastAPI → Validate User/Room Permission → Validate Attachment
+        ↓
+Object Storage (S3) → Attachment Metadata → PostgreSQL
 ```
 
 ---
 
-### 5.26 Error Handling
+### 5.31 Error Handling
 
-The backend will provide consistent, standardized error responses to the frontend for:
+The backend will provide consistent error handling (and standardized frontend responses) for:
 
 - Authentication & Authorization errors
-- Invalid requests & Invalid language configurations
+- Invalid requests & language configurations
 - Room access & Message processing errors
-- Translation & LLM failures
-- WebSocket, Database, & Redis failures
+- Translation, LLM, WebSocket, Database, & Redis failures
 - Attachment & External service failures
 
 ---
 
-### 5.27 Retry and Failure Handling
+### 5.32 Retry and Failure Handling
 
-The backend will provide controlled retry mechanisms to avoid overloading the LLM or backend during temporary failures.
+The backend will provide controlled retry mechanisms for temporary failures.
 
 ```text
 LLM temporary failure
@@ -1380,60 +1765,154 @@ Notify or recover according to application policy
 
 ---
 
-### 5.28 Logging
+### 5.33 Logging
 
-FastAPI will provide structured application logging. **Sensitive message content and credentials will strictly NOT be written into application logs.** 
-
-Logged events include:
+FastAPI will provide structured application logging. **Sensitive message content and credentials should not be unnecessarily written into application logs.**
 
 - Authentication events & Authorization failures
-- Message & Translation processing
-- LLM latency
-- WebSocket connection events
-- Database & Redis errors
-- Agent, Tool, & MCP execution operations
+- Message & Translation processing metadata
+- LLM latency & WebSocket connection events
+- Database/Redis errors & Agent/Tool/MCP operations
 - Attachment & Account operations
 
 ---
 
-### 5.29 Performance Monitoring
+### 5.34 Performance Monitoring
 
-The backend will measure important timings to determine the actual end-to-end latency of a translated message.
+The backend will record timing information to determine the actual end-to-end latency of a translated message.
 
 ```text
 Message received
         ↓
-Language detection time
+Language detection time → Recipient language resolution → Language code → name resolution
         ↓
-Translation processing time
+Redis lookup time → LLM processing time → Translation validation & storage time
         ↓
-Translation validation time
-        ↓
-Message routing time
-        ↓
-WebSocket delivery time
+Message routing time → WebSocket delivery time
 ```
 
 ---
 
-### 5.30 Backend Responsibility Boundary
+### 5.35 Initial Free / Local LLM
 
-The AI layer will **not** replace normal backend business logic. Responsibilities are strictly divided:
+The initial development environment will use a locally hosted, freely downloadable LLM through Ollama. 
+
+- **Initial model candidate:** `Qwen3 4B`
+
+The architecture will use an LLM abstraction layer so that the model can be replaced later without redesigning the application.
+
+```text
+FastAPI → LangGraph → LLM Abstraction Layer → Qwen3 4B / Ollama
+```
+
+*Qwen3 4B is an initial model candidate, not a permanently locked production model.*
+
+---
+
+### 5.36 Model Selection Strategy
+
+The final model will be selected based on actual benchmarking. The evaluation will include:
+
+- Translation & Language detection accuracy
+- Hinglish, Odlish, Romanized, and Mixed-language handling
+- Odi↔Mar, Hin↔Mar, Eng↔Indian language translations
+- Response latency, Memory, and CPU/GPU requirements
+- Concurrent request performance, Tool-calling & Structured output capabilities
+
+---
+
+### 5.37 Speed and Latency as a Core Requirement
+
+Fast message delivery is a primary architectural requirement. The system will minimize unnecessary LLM calls.
+
+#### Initial Engineering Targets:
+
+- **Language Detection:** `< 100 ms target`
+- **Language Resolution:** `< 20 ms target`
+- **Redis Cache Lookup:** `< 20 ms target`
+- **Translation Processing:** `< 1–2 seconds target`
+- **WebSocket Delivery:** `Near real-time target`
+
+*(Actual performance will depend on hardware, model size, message length, concurrency, and network conditions.)*
+
+---
+
+### 5.38 Backend Responsibility Boundary
+
+The AI layer will **not** replace normal backend business logic.
 
 
-| FastAPI Core Responsibilities                  | AI / LangGraph Responsibilities |
-| ---------------------------------------------- | ------------------------------- |
-| Authentication & Authorization                 | Language Understanding          |
-| Business Logic & User/Room Management          | Language & Variant Detection    |
-| Message Management & Routing                   | Translation Processing          |
-| WebSocket & Redis Coordination                 | Translation Validation          |
-| Database Access & Attachments                  | AI Workflow Processing          |
-| Encryption Coordination, Logging, & Monitoring |                                 |
+| FastAPI Responsibilities              | AI Layer (LangGraph/LLM) Responsibilities |
+| ------------------------------------- | ----------------------------------------- |
+| Authentication & Authorization        | Language Understanding                    |
+| Business Logic & User/Room Management | Language Detection Fallback               |
+| Message Management & Routing          | Language Variant Detection                |
+| Recipient & Language Code Resolution  | Translation Processing                    |
+| WebSocket & Redis Coordination        | Translation Validation                    |
+| Database Access & Attachments         | AI Workflow Processing                    |
+| Encryption Coordination & Logging     |                                           |
 
 
 ---
 
-### 5.31 Backend Architecture Summary
+### 5.39 Final Language Translation Responsibility
+
+The following responsibility boundary is locked for the current architecture:
+
+```text
+                     PostgreSQL
+                          │
+              Language Configuration
+                          │
+                          ▼
+                       FastAPI
+                          │
+          ┌───────────────┴────────────────┐
+          │                                │
+          ▼                                ▼
+ Source Language                     Recipient Preference
+ Detection                           Lookup
+          │                                │
+          ▼                                ▼
+     Source Code                       Target Code
+       "or"                              "mr"
+          │                                │
+          └───────────────┬────────────────┘
+                          ▼
+                 Language Resolution
+                          │
+                 ┌────────┴────────┐
+                 ▼                 ▼
+              Odia              Marathi
+                or                 mr
+              Odlish
+              Latin
+                 │                 │
+                 └────────┬────────┘
+                          ▼
+                  Translation Agent
+                          │
+                          ▼
+                         LLM
+                          │
+                          ▼
+                    Translation
+```
+
+#### Responsibility Rules
+
+1. PostgreSQL stores the language configuration and the user's preferred language code.
+2. FastAPI fetches the preferred code and resolves it using the configuration.
+3. FastAPI provides the Translation Agent with the resolved language information.
+4. The Translation Agent prepares the AI translation request.
+5. The LLM receives both human-readable language names and language codes, performs the translation.
+6. Redis stores/reuses eligible translations.
+7. FastAPI routes the translated message; WebSocket delivers it in real time.
+8. The user sees only the translated message and does not need to understand internal codes.
+
+---
+
+### 5.40 Backend Architecture Summary
 
 ```text
                        React + TypeScript
@@ -1461,5 +1940,618 @@ The AI layer will **not** replace normal backend business logic. Responsibilitie
                                                     │
                                                     ▼
                                                    LLM
+```
+
+---
+
+### 5.41 Initial Technology Decisions
+
+
+| Area                          | Initial Decision                        |
+| ----------------------------- | --------------------------------------- |
+| **Backend**                   | FastAPI                                 |
+| **Language**                  | Python                                  |
+| **Database**                  | PostgreSQL                              |
+| **Cache**                     | Redis                                   |
+| **Real-time communication**   | WebSocket                               |
+| **AI orchestration**          | LangGraph                               |
+| **Initial local LLM runtime** | Ollama                                  |
+| **Initial LLM candidate**     | Qwen3 4B                                |
+| **Language detection**        | Fast detection layer + LLM fallback     |
+| **Language configuration**    | PostgreSQL                              |
+| **Language code handling**    | FastAPI                                 |
+| **Translation context**       | Language name + language code + variant |
+| **Translation cache**         | Redis                                   |
+| **Authentication**            | JWT                                     |
+| **File storage**              | Object storage / AWS S3 for production  |
+| **AI integration**            | Agents + Tool Calling + MCP             |
+| **Deployment**                | Docker + AWS                            |
+
+
+*The model selection remains subject to benchmarking before production deployment.*
+
+---
+
+### 5.42 Backend Performance Principle
+
+The backend will follow a **fast-path first** architecture. The system should always avoid expensive AI processing when the required result can be safely obtained through deterministic or cached operations.
+
+#### FAST PATH
+
+```text
+Message → Fast Language Detection → Resolve Recipient Languages → Resolve Language Codes → Redis Cache → Reuse Translation → WebSocket
+```
+
+#### AI PATH
+
+```text
+Message → Ambiguous Detection / Cache Miss → LangGraph → Agent → Qwen3 4B → Translation → Cache → WebSocket
+```
+
+This approach is intended to: Reduce latency, unnecessary LLM calls, and compute requirements, while improving scalability and 50+ user group-chat performance.
+
+---
+
+**The newly added key workflow is:**
+
+```text
+User Message
+     ↓
+FastAPI
+     ↓
+Detect Source Language
+     ↓
+Source Code = "or"
+     ↓
+Find Recipients
+     ↓
+PostgreSQL
+     ↓
+Preferred Code = "mr"
+     ↓
+FastAPI resolves:
+"or" → Odia
+"mr" → Marathi
+     ↓
+Translation Agent
+     ↓
+LLM receives:
+Odia (or) → Marathi (mr)
+     ↓
+Translation
+     ↓
+Redis
+     ↓
+WebSocket
+     ↓
+User B
+```
+
+*This keeps language-code management in the application, while the LLM receives clear language names plus codes for accurate translation.*
+
+## 6. Database Design & Implementation
+
+### 6.1 Objective
+
+PostgreSQL will be the **permanent source of truth** for the application. Redis will not replace PostgreSQL. 
+
+**PostgreSQL will store:**
+Users, Authentication-related information, Language configurations, User language preferences, Language requests, Chat rooms, Room members, Messages, Message translations, Message status, Sessions, Attachments metadata, Agent execution information, Tool execution information, and Account deactivation information.
+
+```text
+PostgreSQL
+    ↓
+Permanent application data
+
+Redis
+    ↓
+Cache / temporary / real-time data
+```
+
+---
+
+### 6.2 Database Design
+
+The initial database will contain these 12 major tables. We will implement them in this order:
+
+1. `users`
+2. `language_configurations`
+3. `language_requests`
+4. `chat_rooms`
+5. `room_members`
+6. `messages`
+7. `message_translations`
+8. `message_status`
+9. `user_sessions`
+10. `attachments`
+11. `agent_executions`
+12. `tool_executions`
+
+---
+
+### 6.3 `language_configurations`
+
+This should be implemented first, because other tables depend on it.
+
+**Purpose:** This is the master configuration for all supported languages. It solves our requirement that users should see "Marathi" instead of "mr".
+
+**Important Fields:**
+
+- `language_id`
+- `language_code`
+- `language_name`
+- `native_name`
+- `display_name`
+- `script`
+- `variant`
+- `is_standard_language`
+- `is_user_selectable`
+- `is_translation_supported`
+- `status`
+- `created_at`
+- `updated_at`
+
+**Examples:**
+
+- **Language Name:** Marathi | **Code:** mr | **Native Name:** मराठी | **Script:** Devanagari | **Variant:** Standard
+- **Language Name:** Odia | **Code:** or | **Native Name:** ଓଡ଼ିଆ | **Script:** Latin | **Variant:** Odlish
+
+> ⚠️ **Important Decision:** Do not create separate root language codes such as "odlish". Instead: `language_code = or`, `variant = Odlish`, `script = Latin`. This keeps the system standardized.
+
+---
+
+### 6.4 `users`
+
+This stores the user's account and profile information.
+
+**Important Fields:**
+
+- `user_id`
+- `name`
+- `email`
+- `password_hash`
+- `preferred_language_id`
+- `account_status`
+- `deactivated_at`
+- `deletion_scheduled_at`
+- `created_at`
+- `updated_at`
+
+**Relationship:**
+
+```text
+users.preferred_language_id
+             ↓
+language_configurations.language_id
+```
+
+So the user selects **Marathi**, but the database knows: `language_id → Marathi → mr`. The user does not manually enter `mr`.
+
+---
+
+### 6.5 Account Status
+
+The `users` table needs to support the locked account lifecycle (`ACTIVE` / `DEACTIVATED`). Permanent deletion means the user record is removed according to the final deletion policy.
+
+#### Deactivation Flow:
+
+```text
+ACTIVE
+   ↓ (User chooses Deactivate)
+DEACTIVATED
+   ↓
+30-day recovery period
+```
+
+**If the user logs in within 30 days:**
+
+```text
+DEACTIVATED → Login → ACTIVE
+```
+
+**If the user does not return within 30 days:**
+
+```text
+DEACTIVATED → 30 days expired → Deletion process
+```
+
+*(We will later decide whether deletion is immediate or handled through a scheduled cleanup process.)*
+
+---
+
+### 6.6 `language_requests`
+
+This supports the requirement: *User doesn't find their language → request it → system validates it → admin can approve it.*
+
+**Important Fields:**
+
+- `request_id`
+- `requested_by`
+- `language_name`
+- `native_name`
+- `requested_variant`
+- `requested_script`
+- `status`
+- `validated_by`
+- `validation_result`
+- `created_at` / `updated_at`
+
+#### Flow:
+
+```text
+User → Language not available → Submit request → language_requests
+ ↓
+Validation → Admin review if required → Approved → language_configurations
+```
+
+*This should not directly modify the master language table from the frontend.*
+
+---
+
+### 6.7 `chat_rooms`
+
+This represents a conversation. 
+
+**Important Fields:**
+
+- `room_id`
+- `room_type` (`PRIVATE` or `GROUP`)
+- `room_name`
+- `created_by`
+- `status`
+- `created_at` / `updated_at`
+
+**Examples:**
+
+- User A + User B → `PRIVATE ROOM`
+- User A + User B + User C ... User 50 → `GROUP ROOM`
+
+---
+
+### 6.8 `room_members`
+
+This table establishes the relationship between users and chat rooms.
+
+**Important Fields:**
+
+- `room_member_id`
+- `room_id`
+- `user_id`
+- `joined_at`
+- `left_at`
+- `member_status`
+
+**Relationship:**
+
+```text
+chat_rooms → room_members → users
+```
+
+> ⚠️ **Important Decision:** Do not store the preferred language in `room_members`. The preferred language belongs to the user profile (`users.preferred_language_id`). The room member table only answers: *"Which users belong to this room?"*
+
+---
+
+### 6.9 `messages`
+
+This stores the original message.
+
+**Important Fields:**
+
+- `message_id`
+- `room_id`
+- `sender_id`
+- `original_content`
+- `detected_language_id`
+- `detected_language_code`
+- `detected_variant`
+- `detected_script`
+- `detection_confidence`
+- `created_at` / `updated_at`
+
+**Example:**
+
+- Original message: `"mu aji office jibi"`
+- Detected: Language = `Odia`, Code = `or`, Variant = `Odlish`, Script = `Latin`, Confidence = `0.92`
+
+**Why store detection information?**
+Later we need to know: What language did the system identify? Was it Odia or Hindi? Was it Odlish? What script was used? How confident was the detector? This helps with debugging and model evaluation.
+
+---
+
+### 6.10 Encryption of Messages
+
+We previously locked the requirement that messages will eventually be stored securely. The database design supports encrypted content.
+
+**Storage Flow:**
+
+```text
+User message → FastAPI → Encryption Service → Encrypted content → PostgreSQL
+```
+
+**Retrieval Flow:**
+
+```text
+PostgreSQL → Encrypted content → Authorization → Decryption Service → Plain message → User
+```
+
+> ⚠️ **Important:** Do not store encryption keys in the same database row as the encrypted message. The actual key-management design will be handled in the security implementation stage.
+
+---
+
+### 6.11 `message_translations`
+
+This is one of the most important tables in our application. It stores AI translations of an original message.
+
+**Important Fields:**
+
+- `translation_id`
+- `message_id`
+- `target_language_id`
+- `target_language_code`
+- `translated_content`
+- `translation_status`
+- `translation_model`
+- `translation_time_ms`
+- `created_at` / `updated_at`
+
+---
+
+### 6.12 Why Translation Should Be Stored Separately
+
+Consider a group of 50 people: 20 → Marathi, 15 → Hindi, 10 → English, 5 → Odia. 
+We should **not** translate the original message 50 times. Instead:
+
+```text
+Original Message
+       │
+       ├── Marathi translation
+       ├── Hindi translation
+       ├── English translation
+       └── Odia translation
+```
+
+Users sharing the same preferred language receive the same translation. This is a major performance optimization.
+
+---
+
+### 6.13 Unique Translation Constraint
+
+There should logically be only one translation for a given message + target language configuration.
+
+**Constraint:**
+
+```text
+UNIQUE (message_id, target_language_id)
+```
+
+*So: `Message 100 + Marathi` should not accidentally create Translation A, Translation B, and Translation C (unless intentionally supporting multiple translation versions later).*
+
+---
+
+### 6.14 `message_status`
+
+This handles delivery and read status per user, necessary for group chats.
+
+**Important Fields:**
+
+- `message_status_id`
+- `message_id`
+- `user_id`
+- `delivery_status`
+- `delivered_at`
+- `read_at`
+
+**Example:**
+
+```text
+Message 100
+   │
+   ├── User B → delivered
+   ├── User C → read
+   ├── User D → delivered
+   └── User E → read
+```
+
+---
+
+### 6.15 `user_sessions`
+
+This supports the automatic logout requirement.
+
+**Important Fields:**
+
+- `session_id`, `user_id`, `token/session identifier`, `last_activity_at`, `expires_at`, `created_at`, `revoked_at`, `status`
+
+**Requirement Flow:**
+
+```text
+15–20 minutes inactive → Session expires → User logged out
+```
+
+Make the actual timeout configurable (e.g., `SESSION_IDLE_TIMEOUT_MINUTES`). The frontend may detect inactivity for UX, but the backend must enforce the session/security rule.
+
+---
+
+### 6.16 `attachments`
+
+The database will store metadata, **not** the actual image/video/file.
+
+**Important Fields:**
+
+- `attachment_id`, `message_id`, `uploaded_by`, `file_name`, `file_type`, `file_size`, `storage_provider`, `storage_key`, `created_at`
+
+**Final Architecture:**
+
+- **LOCAL:** `FastAPI` → `LocalStorage` → `Docker Volume`
+- **AWS:** `FastAPI` → `S3Storage` → `AWS S3`
+
+---
+
+### 6.17 `agent_executions`
+
+Since we have LangGraph and agents, we track AI workflow execution.
+
+**Important Fields:**
+
+- `execution_id`, `message_id`, `agent_name`, `workflow_name`, `status`, `started_at`, `completed_at`, `execution_time_ms`, `error_message`, `created_at`
+
+**Example Flow:** `Message 100` → `Language Agent` → `Translation Agent` → `Validation Agent`.
+*This allows us to answer: "Why did this translation take 2.8 seconds?" or "Which agent failed?"*
+
+---
+
+### 6.18 `tool_executions`
+
+Because we have Tool Calling and MCP, we track tool usage separately.
+
+**Important Fields:**
+
+- `tool_execution_id`, `agent_execution_id`, `tool_name`, `tool_type`, `status`, `started_at`, `completed_at`, `execution_time_ms`, `error_message`, `created_at`
+
+**Relationship:** `agent_executions → tool_executions`
+
+---
+
+### 6.19 Final Database Relationship
+
+The overall entity relationship design:
+
+```text
+                    ┌─────────────────────────┐
+                    │ LANGUAGE_CONFIGURATIONS │
+                    └────────────┬────────────┘
+                                 │
+                  ┌──────────────┴──────────────┐
+                  │                             │
+                  ▼                             ▼
+               USERS                    LANGUAGE_REQUESTS
+                  │
+                  │ (preferred_language_id)
+                  ▼
+             CHAT_ROOMS
+                  │
+                  ▼
+             ROOM_MEMBERS
+                  │
+                  ▼
+               MESSAGES
+                  │
+       ┌──────────┼──────────┐
+       │          │          │
+       ▼          ▼          ▼
+TRANSLATIONS   STATUS   ATTACHMENTS
+       │
+       ▼
+LANGUAGE_CONFIGURATIONS
+
+MESSAGES → AGENT_EXECUTIONS → TOOL_EXECUTIONS
+
+USERS → USER_SESSIONS
+```
+
+---
+
+### 6.20 Foreign Key Relationships
+
+
+| Table                  | Foreign Key             | References                            |
+| ---------------------- | ----------------------- | ------------------------------------- |
+| `users`                | `preferred_language_id` | `language_configurations.language_id` |
+| `language_requests`    | `requested_by`          | `users.user_id`                       |
+| `language_requests`    | `validated_by`          | `users.user_id`                       |
+| `room_members`         | `room_id`               | `chat_rooms.room_id`                  |
+| `room_members`         | `user_id`               | `users.user_id`                       |
+| `messages`             | `room_id`               | `chat_rooms.room_id`                  |
+| `messages`             | `sender_id`             | `users.user_id`                       |
+| `messages`             | `detected_language_id`  | `language_configurations.language_id` |
+| `message_translations` | `message_id`            | `messages.message_id`                 |
+| `message_translations` | `target_language_id`    | `language_configurations.language_id` |
+| `message_status`       | `message_id`            | `messages.message_id`                 |
+| `message_status`       | `user_id`               | `users.user_id`                       |
+| `user_sessions`        | `user_id`               | `users.user_id`                       |
+| `attachments`          | `message_id`            | `messages.message_id`                 |
+| `attachments`          | `uploaded_by`           | `users.user_id`                       |
+| `agent_executions`     | `message_id`            | `messages.message_id`                 |
+| `tool_executions`      | `agent_execution_id`    | `agent_executions.execution_id`       |
+
+
+---
+
+### 6.21 Important Indexes
+
+Plan indexes around actual application queries:
+
+- **Users:** `email`, `account_status`, `preferred_language_id`
+- **Language configuration:** `language_code`, `status`, `is_user_selectable`, and potentially `(language_code, variant, script)`
+- **Room members:** `room_id`, `user_id`
+- **Messages:** `room_id`, `sender_id`, `created_at`
+- **Translations:** `message_id`, `target_language_id`
+  - *Unique constraint:* `UNIQUE(message_id, target_language_id)`
+- **Status:** `message_id`, `user_id`
+- **Sessions:** `user_id`, `expires_at`, `status`
+
+---
+
+### 6.22 Important Database Rules
+
+1. **PostgreSQL is the source of truth.**
+2. **Redis is not permanent storage.**
+3. **Users select language names, not language codes.**
+4. **Database stores language configuration and IDs.**
+5. **Backend resolves language IDs/codes to language configuration.**
+6. **Translation records are separated from original messages.**
+7. **Same message + same target language should reuse the translation.**
+8. **Room membership does not contain language preference.** User preference belongs to the user profile.
+9. **Attachments are stored outside PostgreSQL.** (Local: Docker Volume | Production: AWS S3).
+10. **Database stores attachment metadata only.**
+11. **Sensitive message data will support encryption.**
+12. **LLM/Agent execution information is tracked separately.**
+
+---
+
+### 6.23 Your Actual Task for Step 6
+
+Don't create all tables at once. Follow this sequence:
+
+1. **Step 6.1 — Set up PostgreSQL:** For local development: `PostgreSQL → Docker` (Do not install directly on your machine unless required).
+2. **Step 6.2 — Create the database:** Conceptually: `multilingual_chat`
+3. **Step 6.3 — Create the initial schema:** Start with `language_configurations`, then `users`, then `language_requests`. Next, create `chat_rooms` and `room_members`. Then `messages`, `message_translations`, and `message_status`. Then `user_sessions` and `attachments`. Finally, `agent_executions` and `tool_executions`.
+
+---
+
+### 6.24 Recommended Implementation Order
+
+Your actual work pipeline should be:
+
+```text
+[STEP 6.1]  PostgreSQL Docker setup
+        ↓
+[STEP 6.2]  Database creation
+        ↓
+[STEP 6.3]  Language configuration table
+        ↓
+[STEP 6.4]  Users table
+        ↓
+[STEP 6.5]  Language request table
+        ↓
+[STEP 6.6]  Chat room tables
+        ↓
+[STEP 6.7]  Message tables
+        ↓
+[STEP 6.8]  Translation tables
+        ↓
+[STEP 6.9]  Status/session tables
+        ↓
+[STEP 6.10] Attachment metadata
+        ↓
+[STEP 6.11] Agent/tool execution tables
+        ↓
+[STEP 6.12] Foreign keys
+        ↓
+[STEP 6.13] Indexes
+        ↓
+[STEP 6.14] Constraints
+        ↓
+[STEP 6.15] Seed language configurations
 ```
 

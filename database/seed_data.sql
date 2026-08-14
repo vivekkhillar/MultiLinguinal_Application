@@ -1,0 +1,56 @@
+INSERT INTO language_configurations (
+    language_code, 
+    language_name, 
+    native_name, 
+    script, 
+    variant, 
+    is_standard_language, 
+    is_user_selectable, 
+    is_translation_supported, 
+    status
+) VALUES 
+    -- Standard scripts
+    ('en', 'English', 'English', 'Latin', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('hi', 'Hindi', 'हिन्दी', 'Devanagari', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('bn', 'Bengali', 'বাংলা', 'Bengali', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('te', 'Telugu', 'తెలుగు', 'Telugu', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('mr', 'Marathi', 'मराठी', 'Devanagari', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('ta', 'Tamil', 'தமிழ்', 'Tamil', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('ur', 'Urdu', 'اردو', 'Arabic', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('gu', 'Gujarati', 'ગુજરાતી', 'Gujarati', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('kn', 'Kannada', 'ಕನ್ನಡ', 'Kannada', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('ml', 'Malayalam', 'മലയാളം', 'Malayalam', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('or', 'Odia', 'ଓଡ଼ିଆ', 'Odia', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('pa', 'Punjabi', 'ਪੰਜਾਬੀ', 'Gurmukhi', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('as', 'Assamese', 'অসমীয়া', 'Assamese', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('mai', 'Maithili', 'मैथिली', 'Devanagari', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('sat', 'Santali', 'ᱥᱟᱱᱛᱟᱲᱤ', 'Ol Chiki', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('ks', 'Kashmiri', 'कॉशुर', 'Devanagari', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('sd', 'Sindhi', 'सिन्धी', 'Devanagari', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('doi', 'Dogri', 'डोगरी', 'Devanagari', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('brx', 'Bodo', 'बड़ो', 'Devanagari', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('mni', 'Manipuri', 'মৈতৈলোন্', 'Bengali', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('ne', 'Nepali', 'नेपाली', 'Devanagari', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('kok', 'Konkani', 'कोंकणी', 'Devanagari', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    ('sa', 'Sanskrit', 'संस्कृतम्', 'Devanagari', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
+    
+    -- Latin script variants (NOW ALL TRUE for translation)
+    ('hi-Latn', 'Hindi', 'हिन्दी', 'Latin', 'Hinglish', FALSE, TRUE, TRUE, 'ACTIVE'),
+    ('bn-Latn', 'Bengali', 'বাংলা', 'Latin', 'Banglish', FALSE, TRUE, TRUE, 'ACTIVE'),
+    ('te-Latn', 'Telugu', 'తెలుగు', 'Latin', 'Tenglish', FALSE, TRUE, TRUE, 'ACTIVE'),
+    ('mr-Latn', 'Marathi', 'मराठी', 'Latin', 'Marlish', FALSE, TRUE, TRUE, 'ACTIVE'),
+    ('ta-Latn', 'Tamil', 'தமிழ்', 'Latin', 'Tanglish', FALSE, TRUE, TRUE, 'ACTIVE'),
+    ('ur-Latn', 'Urdu', 'اردو', 'Latin', 'Roman Urdu', FALSE, TRUE, TRUE, 'ACTIVE'),
+    ('gu-Latn', 'Gujarati', 'ગુજરાતી', 'Latin', 'Guglish', FALSE, TRUE, TRUE, 'ACTIVE'),
+    ('kn-Latn', 'Kannada', 'ಕನ್ನಡ', 'Latin', 'Kanglish', FALSE, TRUE, TRUE, 'ACTIVE'),
+    ('ml-Latn', 'Malayalam', 'മലയാളം', 'Latin', 'Manglish', FALSE, TRUE, TRUE, 'ACTIVE'),
+    ('or-Latn', 'Odia', 'ଓଡ଼ିଆ', 'Latin', 'Odlish', FALSE, TRUE, TRUE, 'ACTIVE'),
+    ('pa-Latn', 'Punjabi', 'ਪੰਜਾਬੀ', 'Latin', 'Roman Punjabi', FALSE, TRUE, TRUE, 'ACTIVE'),
+    ('kok-Latn', 'Konkani', 'Konkani', 'Latin', 'Roman Konkani', FALSE, TRUE, TRUE, 'ACTIVE'),
+    
+    -- Arabic script variants (NOW ALL TRUE for translation)
+    ('ks-Arab', 'Kashmiri', 'کٲشُر', 'Arabic', 'Standard', FALSE, TRUE, TRUE, 'ACTIVE'),
+    ('sd-Arab', 'Sindhi', 'سنڌي', 'Arabic', 'Standard', FALSE, TRUE, TRUE, 'ACTIVE'),
+    
+    -- Meitei Mayek script (NOW TRUE for translation)
+    ('mni-Mtei', 'Manipuri', 'ꯃꯤꯇꯩ ꯂꯣꯟ', 'Meitei Mayek', 'Standard', FALSE, TRUE, TRUE, 'ACTIVE');
