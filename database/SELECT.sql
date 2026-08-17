@@ -1,1 +1,15 @@
-SELECT * FROM chat_app.language_configurations;
+select
+    language_id,
+    language_code,
+    language_name,
+    native_name,
+    script,
+    variant,
+    is_standard_language,
+    is_user_selectable,
+    is_translation_supported,
+    status,
+    created_at,
+    updated_at
+from
+    chat_app.language_configurations;
