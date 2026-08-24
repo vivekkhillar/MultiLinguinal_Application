@@ -33,7 +33,6 @@ INSERT INTO language_configurations (
     ('ne', 'Nepali', 'नेपाली', 'Devanagari', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
     ('kok', 'Konkani', 'कोंकणी', 'Devanagari', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
     ('sa', 'Sanskrit', 'संस्कृतम्', 'Devanagari', 'Standard', TRUE, TRUE, TRUE, 'ACTIVE'),
-    
     -- Latin script variants (NOW ALL TRUE for translation)
     ('hi-Latn', 'Hindi', 'हिन्दी', 'Latin', 'Hinglish', FALSE, TRUE, TRUE, 'ACTIVE'),
     ('bn-Latn', 'Bengali', 'বাংলা', 'Latin', 'Banglish', FALSE, TRUE, TRUE, 'ACTIVE'),
@@ -47,10 +46,10 @@ INSERT INTO language_configurations (
     ('or-Latn', 'Odia', 'ଓଡ଼ିଆ', 'Latin', 'Odlish', FALSE, TRUE, TRUE, 'ACTIVE'),
     ('pa-Latn', 'Punjabi', 'ਪੰਜਾਬੀ', 'Latin', 'Roman Punjabi', FALSE, TRUE, TRUE, 'ACTIVE'),
     ('kok-Latn', 'Konkani', 'Konkani', 'Latin', 'Roman Konkani', FALSE, TRUE, TRUE, 'ACTIVE'),
-    
     -- Arabic script variants (NOW ALL TRUE for translation)
     ('ks-Arab', 'Kashmiri', 'کٲشُر', 'Arabic', 'Standard', FALSE, TRUE, TRUE, 'ACTIVE'),
     ('sd-Arab', 'Sindhi', 'سنڌي', 'Arabic', 'Standard', FALSE, TRUE, TRUE, 'ACTIVE'),
-    
     -- Meitei Mayek script (NOW TRUE for translation)
     ('mni-Mtei', 'Manipuri', 'ꯃꯤꯇꯩ ꯂꯣꯟ', 'Meitei Mayek', 'Standard', FALSE, TRUE, TRUE, 'ACTIVE');
+
+
