@@ -2,34 +2,40 @@ services:
 
   # Define services that will pull images from Docker Hub/Cloud
 
-  postgres:  # Fixed spelling from "postgress" to "postgres"
+  postgres:
+    # Fixed spelling from "postgress" to "postgres"
     image: postgres:16-alpine
-    container_name: chat_application_DB  # Container name for the PostgreSQL service
-    environment:  # Database credentials and configuration
+    container_name: chat_application_DB # Container name for the PostgreSQL service
+    environment:
+      # Database credentials and configuration
       POSTGRES_USER: chat_app
       POSTGRES_PASSWORD: Abc@123
       POSTGRES_DB: chat_app_db
-    
-    ports:  # Port mapping: host_port:container_port
-      - "32030:32031"  # Host port 32030 maps to container port 32031
-    command: -p 32031  # Custom port configuration (default PostgreSQL port is 5432)
 
-    volumes:  # Persistent data storage and initialization scripts
-      - postgres_data:/var/lib/postgresql/data  # Named volume for database data persistence
+    ports:
+      # Port mapping: host_port:container_port
+      - "32030:32031" # Host port 32030 maps to container port 32031
+    command: -p 32031 # Custom port configuration (default PostgreSQL port is 5432)
+
+    volumes:
+      # Persistent data storage and initialization scripts
+      - postgres_data:/var/lib/postgresql/data # Named volume for database data persistence
       # - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro  # SQL initialization script for database setup
       # CHANGE THIS LINE - Mount entire folder instead
       #- ./database:/docker-entrypoint-initdb.d:ro  # ← FIXED HERE
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
       - ./database/seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
-      # - ./database/functions.sql:/docker-entrypoint-initdb.d/03_functions.sql:ro
+      - ./database/select.sql:/docker-entrypoint-initdb.d/03_select.sql:ro
 
-    healthcheck:  # Health check to verify PostgreSQL is ready
-      test: ["CMD-SHELL", "pg_isready -U chat_app -d chat_app_db"]  # Check if PostgreSQL is accepting connections
-      interval: 5s  # Check every 5 seconds
-      timeout: 5s  # Timeout after 5 seconds
-      retries: 5  # Retry 5 times before marking as unhealthy
+    healthcheck:
+      # Health check to verify PostgreSQL is ready
+      test: [ "CMD-SHELL", "pg_isready -U chat_app -d chat_app_db" ] # Check if PostgreSQL is accepting connections
+      interval: 5s # Check every 5 seconds
+      timeout: 5s # Timeout after 5 seconds
+      retries: 5 # Retry 5 times before marking as unhealthy
 
 volumes:
-  postgres_data:  # Named volume for PostgreSQL data persistence
+  postgres_data:
+    # Named volume for PostgreSQL data persistence
 
-  # Create Ollama service to the same container and will fetch the LLM 
+    # Create Ollama service to the same container and will fetch the LLM 

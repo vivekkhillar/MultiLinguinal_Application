@@ -2554,4 +2554,426 @@ Your actual work pipeline should be:
         ↓
 [STEP 6.15] Seed language configurations
 ```
+```
+DB Structure:
 
+language_configurations
+        │
+        ├────────── users
+        │              │
+        │              ├── room_members
+        │              │       │
+        │              │       └── chat_rooms
+        │              │
+        │              ├── messages
+        │              │       │
+        │              │       ├── message_translations
+        │              │       ├── message_status
+        │              │       └── message_attachments
+        │              │
+        │              └── user_sessions
+        │
+        └────────── messages
+```
+
+
+
+## Step 7 — Redis Architecture & Implementation
+
+### 7.0 Objective
+
+Redis is used as a fast, temporary, and distributed data layer for caching,
+rate limiting, real-time coordination, temporary state, and other
+performance-sensitive operations.
+
+PostgreSQL remains the authoritative source of truth for permanent
+application data. Redis must not be treated as the primary persistent
+database.
+
+#### Core Principle
+
+PostgreSQL = Permanent / Authoritative Data
+
+Redis = Temporary / Cached / Fast-access / Coordination Data
+
+#### Primary Redis Responsibilities
+
+- Caching
+- Translation result caching
+- Rate limiting
+- Presence and temporary state
+- WebSocket coordination
+- Pub/Sub
+- Distributed locking where required
+
+#### PostgreSQL Responsibilities
+
+- Users
+- Messages
+- Chat rooms
+- Room members
+- Message translations
+- Sessions
+- Attachments metadata
+- Agent executions
+- Tool executions
+- Audit and compliance data
+
+#### Redis Failure Principle
+
+If Redis becomes unavailable, permanent business data must remain safe
+because PostgreSQL is the authoritative source of truth.
+
+#### 7.0 Completion Criteria
+
+- Redis responsibilities defined
+- PostgreSQL vs Redis responsibilities defined
+- Redis use cases identified
+- Redis failure principle defined
+- Redis implementation planned
+
+---
+
+### 7.1 Redis Role & Responsibility
+
+Redis acts as a high-speed, temporary, caching, and coordination layer
+for the MultiLinguinal Application.
+
+Redis does not replace PostgreSQL and must not be treated as the
+authoritative source of truth for permanent business data.
+
+#### Redis Responsibilities
+
+Redis will be used for:
+
+- Translation result caching
+- General application caching
+- Rate limiting
+- User presence
+- Typing indicators
+- WebSocket coordination
+- Pub/Sub
+- Temporary agent/workflow state
+- Temporary counters
+- Distributed locks where required
+
+#### PostgreSQL Responsibilities
+
+PostgreSQL remains the authoritative source for:
+
+- Users
+- Messages
+- Chat rooms
+- Room members
+- Message translations
+- User sessions
+- Attachment metadata
+- Agent executions
+- Tool executions
+- Audit and compliance data
+
+#### Core Principle
+
+PostgreSQL = Permanent / Authoritative Data
+
+Redis = Cache / Temporary State / Fast Access / Coordination
+
+#### Redis Failure Principle
+
+Redis failure must not result in permanent business-data loss.
+
+If Redis becomes unavailable, the application should fall back to
+PostgreSQL wherever possible. Temporary features such as caching,
+presence, typing indicators, rate limiting, and real-time coordination
+may temporarily degrade.
+
+#### Translation Cache
+
+Translation requests should first check Redis.
+
+If a matching translation is found in Redis, the cached result can be
+returned without calling the translation API or LLM again.
+
+If no cached result exists, the application calls the translation
+service, stores the reusable result in Redis, persists the required
+business result in PostgreSQL, and returns the response.
+
+---
+
+### 7.2 — Redis Use-Case Identification
+
+| Use Case | Status | Justification |
+| :--- | :--- | :--- |
+| **1. Cache** | **YES** | Reduces PostgreSQL load for frequently accessed, slow-changing data. |
+| **2. Session / Temp Auth** | **YES** | Fast token blacklisting and temporary OAuth/reset state verification. |
+| **3. Rate Limiting** | **YES** | Fast, atomic counters required to protect API endpoints. |
+| **4. WebSocket Coordination** | **YES** | Essential for multi-instance horizontal scaling and broadcasting. |
+| **5. Pub/Sub** | **YES** | Core mechanism for real-time chat message delivery across clients. |
+| **6. Temp Agent/Workflow State** | **YES** | LangGraph temporary execution state before final persistence. |
+| **7. Translation Caching** | **YES** | Saves external API costs and reduces latency for duplicate translations. |
+| **8. Presence/Online Status** | **YES** | Ephemeral data; perfect for Redis TTLs. Does not belong in Postgres. |
+| **9. Temporary Locks** | **YES** | Prevents duplicate agent executions or race conditions in async tasks. |
+
+---
+
+### 7.3 — Redis Data Classification
+All Redis data is classified into one of the following categories to dictate its lifecycle and importance:
+
+*   **Persistent Business Data:** `NONE`. Redis will not hold authoritative business data.
+*   **Temporary Data:** Data with a strict lifecycle that is not needed after completion (e.g., session blacklists, presence, temporary agent state, rate limit counters).
+*   **Derived Data:** Data that can be perfectly reconstructed from PostgreSQL or external APIs (e.g., translation cache, database query caches).
+*   **Coordination Data:** Transitory messages and locks used for system synchronization (e.g., Pub/Sub messages, distributed locks).
+
+---
+
+### 7.4 — Redis Architecture
+**Logical Architecture:**
+
+```text
+                    FastAPI
+                       │
+              ┌────────┴────────┐
+              │                 │
+              ▼                 ▼
+         PostgreSQL           Redis
+      (Source of Truth)  (Supporting Layer)
+```
+
+*   **Connection:** FastAPI communicates with Redis via an asynchronous client (`redis.asyncio`).
+*   **Connection Pooling:** A global connection pool is initialized on application startup to prevent connection overhead per request.
+*   **Logical Databases:** Use a single DB (DB `0`) to simplify infrastructure and cluster compatibility. Logical separation is handled via key prefixes.
+*   **Access Layer:** Application code never calls Redis directly. A dedicated repository/service layer abstracts Redis operations.
+*   **Failure Handling:** Redis calls are wrapped in try-except blocks. Timeouts are kept short (e.g., 50ms for cache gets) to prevent cascading failures.
+
+---
+
+### 7.5 — Redis Key Naming Convention
+**Standard:** `chat_app:{domain}:{identifier}:{attribute}`
+
+**Examples:**
+*   `chat_app:user:123:profile` (Cache)
+*   `chat_app:room:456:members` (Cache/State)
+*   `chat_app:session:blacklist:789` (Auth)
+*   `chat_app:rate_limit:user:123:api` (Rate Limiting)
+*   `chat_app:presence:user:123:status` (Presence)
+*   `chat_app:translation:en:es:v1:hash123` (Translation Cache)
+
+---
+
+### 7.6 — TTL Strategy
+Every key written to Redis **must** have a Time-To-Live (TTL).
+
+| Data Type | TTL Duration | Expiry Behavior | Recreation |
+| :--- | :--- | :--- | :--- |
+| **Rate Limit** | 1 min - 1 hour | Auto-deletes | Counter resets on next request |
+| **Presence** | 60 seconds | User marked offline | Refreshed via client heartbeat |
+| **App Cache** | 15 min - 24 hours | Cache Miss | Re-fetched from PostgreSQL |
+| **Translations** | 30 - 90 days | Cache Miss | Re-fetched from LLM/Translation API |
+| **Temp Locks** | 5 - 30 seconds | Lock released | Re-acquired if task retries |
+
+---
+
+### 7.7 — Cache Strategy
+*   **Workflow:** Cache Miss → Fetch from PostgreSQL → Write to Redis (with TTL) → Return Result
+*   **Cache Invalidation:** Event-driven. When a record is updated in PostgreSQL, the corresponding Redis key is explicitly deleted.
+*   **Stale Data:** Prefer cache invalidation (deletion) over cache updates to prevent race conditions.
+*   **Cache Stampede Prevention:** For heavy queries, use a short-lived distributed lock to ensure only one worker fetches from Postgres and populates the cache.
+
+---
+
+### 7.8 — Translation Cache Strategy
+Translations are highly repetitive and costly.
+
+*   **Cache Identity (Key):** `chat_app:translation:{source_language}:{target_language}:{model_version}:{md5_hash_of_source_text}`
+*   **TTL:** Long-lived (e.g., 30 days).
+*   **Invalidation:** Automatic via TTL. If the underlying translation model is swapped (e.g., moving from v1 to v2), the model version in the key changes, inherently starting a fresh cache.
+
+---
+
+### 7.9 — Session / Temporary Authentication Data
+*   **PostgreSQL:** Stores permanent user credentials and long-lived refresh tokens.
+*   **Redis:** Stores blacklisted JWT tokens (on logout) and fast temporary session states (e.g., OAuth flow states, password reset temporary codes).
+*   **Rule:** We do not duplicate the entire user session in Redis. JWTs remain stateless; Redis is only queried to check if a valid JWT has been prematurely revoked.
+
+---
+
+### 7.10 — Rate Limiting
+Rate limiting protects the application from abuse and controls API costs using sliding or fixed window counters (`INCR` + `EXPIRE`).
+
+| Action | Limit | Window | Exceeded Response |
+| :--- | :--- | :--- | :--- |
+| **Login Attempts** | 5 | 15 mins | `429 Too Many Requests` |
+| **Message Sending** | 60 | 1 min | `429 Too Many Requests` |
+| **Translations** | 100 | 1 min | `429 Too Many Requests` |
+| **File Uploads** | 10 | 1 hour | `429 Too Many Requests` |
+| **Agent Execution** | 20 | 1 min | `429 Too Many Requests` |
+
+---
+
+### 7.11 — Presence / Online Status
+Maintains the real-time status of users.
+
+*   **Status Types:** `ONLINE`, `OFFLINE`, `TYPING`.
+*   **Flow:**
+    1. WebSocket connects → Sets `chat_app:presence:user:{id}` to `ONLINE` (TTL: 60s).
+    2. Client sends heartbeat every 30s → Updates TTL.
+    3. Client disconnects normally → Explicitly deletes key (`OFFLINE`).
+    4. Client drops connection abruptly → TTL expires automatically (`OFFLINE`).
+
+---
+
+### 7.12 — WebSocket / Real-Time Redis Support
+To support multiple FastAPI instances, WebSockets cannot hold state strictly in local memory.
+
+**Architecture:**
+```text
+Client 1 
+  ↓ (WebSocket)
+FastAPI Instance A
+  ↓ (Publish)
+Redis Pub/Sub 
+  ↓ (Subscribe)
+FastAPI Instance B
+  ↓ (WebSocket)
+Client 2
+```
+
+---
+
+### 7.13 — Redis Pub/Sub Strategy
+*   **Channels:**
+    *   `chat_app:room:{room_id}:messages` (New chat messages)
+    *   `chat_app:user:{user_id}:notifications` (Direct user alerts)
+*   **Message Format:** JSON payloads containing `event_type`, `payload`, and `timestamp`.
+*   **Failure Behavior:** Pub/Sub is "fire and forget". Messages must also be saved to PostgreSQL first. Redis Pub/Sub is strictly for UI updates, not guaranteed delivery.
+
+---
+
+### 7.14 — Distributed Locking
+Redis locks will be used sparingly to prevent race conditions in asynchronous environments.
+
+*   **Use Cases:** Preventing duplicate LangGraph agent executions triggered by the same event; deduplicating heavy external API calls.
+*   **Implementation:** Redis `SET resource_name my_random_value NX PX 30000`.
+*   **Rule:** If a PostgreSQL unique constraint or transaction can easily solve the problem, prefer PostgreSQL over Redis locks.
+
+---
+
+### 7.15 — Agent / Workflow Temporary State
+For LangGraph/Agent execution:
+
+*   **Temporary Execution State:** Short-lived memory for an agent currently running a thought-loop will be stored in Redis.
+*   **Permanent Execution Record:** Once the agent concludes a workflow step or outputs a final decision, the result is written to PostgreSQL. Redis is then cleared of that workflow state.
+
+---
+
+### 7.16 — Redis Persistence
+*   **Decision:** **RDB (Redis Database) Snapshots Enabled.**
+*   **Reasoning:** While Redis does not hold authoritative data, losing rate limit counters, translation caches, and workflow locks abruptly can cause a massive traffic spike to PostgreSQL and external APIs upon restart.
+*   **Configuration:** Save snapshot every 5 minutes if at least 100 keys changed (`save 300 100`). Append-Only File (AOF) is disabled.
+
+---
+
+### 7.17 — Redis Failure Strategy
+
+| Feature | Action if Redis Fails |
+| :--- | :--- |
+| **Database Cache** | **Bypass** - Fetch directly from PostgreSQL. |
+| **Translation Cache** | **Bypass** - Call external API directly. |
+| **Rate Limiting** | **Fail Open** - Allow request (prioritize availability). |
+| **WebSockets** | **Degrade** - Broadcasts only work within the local FastAPI instance. |
+| **Agent Locks** | **Fail Closed** - Halt agent execution to prevent duplicate corruptions. |
+
+---
+
+### 7.18 — Redis Docker Setup
+`docker-compose.yml` snippet:
+
+```yaml
+services:
+  redis:
+    image: redis:7.2-alpine
+    container_name: chat_app_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 300 100 --requirepass ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_network
+
+volumes:
+  redis_data:
+```
+
+---
+
+### 7.19 — Redis Configuration
+Application environment variables required for Redis:
+
+```env
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_PASSWORD=your_secure_password
+REDIS_DB=0
+REDIS_TIMEOUT_MS=500
+```
+
+---
+
+### 7.20 — FastAPI Redis Integration
+*   **Architecture:** Abstract Redis behind a Service/Repository pattern (e.g., `CacheService`, `RateLimitService`).
+*   **Rule:** No raw Redis commands scattered in API routers.
+*   **Connection:** Utilize a global connection pool initialized on FastAPI lifespan startup.
+
+---
+
+### 7.21 — Redis Security
+*   **Authentication:** Redis requires a password (configured via `REDIS_PASSWORD`).
+*   **Network Exposure:** Resides strictly within the internal Docker/VPC network. No public IP exposure.
+*   **Protected Configuration:** Dangerous commands (`FLUSHALL`, `FLUSHDB`, `KEYS`) will be disabled or renamed via `redis.conf` in production.
+
+---
+
+### 7.22 — Redis Testing
+**Test Checklist:**
+- [ ] Connection pool establishes on application startup.
+- [ ] Read/write operations succeed.
+- [ ] TTL expires data automatically.
+- [ ] Cache invalidation triggers correctly on PostgreSQL updates.
+- [ ] Rate limiting blocks requests after threshold is met.
+- [ ] WebSocket Pub/Sub successfully delivers cross-instance messages.
+- [ ] Application starts and functions normally (bypassing cache) when Redis is deliberately stopped.
+
+---
+
+### 7.23 — Redis Performance & Monitoring
+**Monitoring Baseline:**
+*   **Memory Usage:** Ensure eviction policies trigger before OOM.
+*   **Cache Hit Rate:** Target > 80% for read-heavy endpoints.
+*   **Connected Clients:** Monitor for connection leaks from FastAPI.
+*   **Latency:** Ensure average Redis response time is < 5ms.
+*   **Evictions:** Track keys evicted due to max-memory limits.
+
+---
+
+### 7.24 — Redis Production Readiness Review
+**Review Checklist:**
+- [ ] Architecture aligns with "Postgres=Permanent, Redis=Temporary" principle.
+- [ ] `redis.conf` secured (password applied, public access blocked).
+- [ ] RDB snapshots configured appropriately.
+- [ ] Fallback mechanisms (failure strategy) implemented in application code.
+- [ ] Max memory limit and eviction policy (`allkeys-lru`) configured.
+- [ ] Standardized key naming convention enforced.
+
+---
+
+### 7.25 — Redis Finalization
+**Status:** The initial Redis architecture is **FROZEN**.
+
+Future modifications to core Redis usage patterns, key structures, or infrastructure responsibilities must be documented here and implemented deliberately.
