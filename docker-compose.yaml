@@ -34,7 +34,23 @@ services:
       timeout: 5s # Timeout after 5 seconds
       retries: 5 # Retry 5 times before marking as unhealthy
 
+  redis:
+    image: redis:7.2-alpine
+    container_name: chat_app_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 300 100 --requirepass Abc@123
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "Abc@123", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
+  redis_data:
   postgres_data:
     # Named volume for PostgreSQL data persistence
 

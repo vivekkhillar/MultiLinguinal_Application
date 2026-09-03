@@ -2701,19 +2701,38 @@ business result in PostgreSQL, and returns the response.
 ---
 
 ### 7.2 — Redis Use-Case Identification
+### 7.2 Redis Use-Case Identification
 
-| Use Case | Status | Justification |
-| :--- | :--- | :--- |
-| **1. Cache** | **YES** | Reduces PostgreSQL load for frequently accessed, slow-changing data. |
-| **2. Session / Temp Auth** | **YES** | Fast token blacklisting and temporary OAuth/reset state verification. |
-| **3. Rate Limiting** | **YES** | Fast, atomic counters required to protect API endpoints. |
-| **4. WebSocket Coordination** | **YES** | Essential for multi-instance horizontal scaling and broadcasting. |
-| **5. Pub/Sub** | **YES** | Core mechanism for real-time chat message delivery across clients. |
-| **6. Temp Agent/Workflow State** | **YES** | LangGraph temporary execution state before final persistence. |
-| **7. Translation Caching** | **YES** | Saves external API costs and reduces latency for duplicate translations. |
-| **8. Presence/Online Status** | **YES** | Ephemeral data; perfect for Redis TTLs. Does not belong in Postgres. |
-| **9. Temporary Locks** | **YES** | Prevents duplicate agent executions or race conditions in async tasks. |
+Redis will be introduced only for use cases where fast temporary
+storage, caching, counters, coordination, or event distribution
+provides a clear architectural benefit.
 
+#### Redis MUST USE
+
+- Translation result caching
+- General application caching
+- Rate limiting
+- User presence
+- Typing indicators
+- WebSocket coordination
+- Pub/Sub
+- Temporary counters
+
+#### Redis MAY USE
+
+- Temporary agent/workflow state
+- Distributed locks where required by an actual concurrency scenario
+
+#### Redis MUST NOT USE
+
+- Permanent user records
+- Permanent messages
+- Permanent chat-room data
+- Permanent message translations
+- Audit/compliance records
+- Other authoritative business data
+
+PostgreSQL remains the source of truth for permanent application data.
 ---
 
 ### 7.3 — Redis Data Classification
