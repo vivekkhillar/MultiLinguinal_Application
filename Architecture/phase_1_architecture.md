@@ -2700,7 +2700,6 @@ business result in PostgreSQL, and returns the response.
 
 ---
 
-### 7.2 — Redis Use-Case Identification
 ### 7.2 Redis Use-Case Identification
 
 Redis will be introduced only for use cases where fast temporary
@@ -2735,213 +2734,1000 @@ provides a clear architectural benefit.
 PostgreSQL remains the source of truth for permanent application data.
 ---
 
-### 7.3 — Redis Data Classification
-All Redis data is classified into one of the following categories to dictate its lifecycle and importance:
+### 7.3 Redis Data Classification
 
-*   **Persistent Business Data:** `NONE`. Redis will not hold authoritative business data.
-*   **Temporary Data:** Data with a strict lifecycle that is not needed after completion (e.g., session blacklists, presence, temporary agent state, rate limit counters).
-*   **Derived Data:** Data that can be perfectly reconstructed from PostgreSQL or external APIs (e.g., translation cache, database query caches).
-*   **Coordination Data:** Transitory messages and locks used for system synchronization (e.g., Pub/Sub messages, distributed locks).
+All Redis data must belong to a defined temporary, cached, event, or
+coordination category.
 
+Redis will not contain permanent authoritative business data.
+
+#### Redis Data Categories
+
+##### 1. CACHE
+
+Examples:
+
+- Translation results
+- Frequently accessed application data
+- Language configuration cache
+
+Characteristics:
+
+- Reconstructable
+- Non-authoritative
+- TTL-based where appropriate
+- PostgreSQL or another source remains authoritative
+
+##### 2. TEMPORARY_STATE
+
+Examples:
+
+- User presence
+- Typing indicators
+- Temporary agent/workflow state
+
+Characteristics:
+
+- Short-lived
+- Expirable
+- Reconstructable
+- Not authoritative
+
+##### 3. COUNTER
+
+Examples:
+
+- API request counters
+- Login attempt counters
+- Translation request counters
+- Rate-limit counters
+
+Characteristics:
+
+- Increment/decrement based
+- TTL-based
+- Temporary
+
+##### 4. EVENT
+
+Examples:
+
+- WebSocket events
+- Presence events
+- Pub/Sub messages
+
+Characteristics:
+
+- Transient
+- Not treated as permanent storage
+- No assumption that historical events remain available
+
+##### 5. COORDINATION
+
+Examples:
+
+- Distributed locks
+- Temporary processing ownership
+
+Characteristics:
+
+- Short-lived
+- TTL protected
+- Used only when required
+- Must have safe failure handling
+
+#### Classification Rule
+
+Redis data must always have a clearly defined purpose, lifetime, and
+failure/recovery behavior.
+
+Permanent authoritative business data must remain in PostgreSQL.
 ---
 
-### 7.4 — Redis Architecture
-**Logical Architecture:**
+### 7.4 Redis Architecture
 
-```text
-                    FastAPI
-                       │
-              ┌────────┴────────┐
-              │                 │
-              ▼                 ▼
-         PostgreSQL           Redis
-      (Source of Truth)  (Supporting Layer)
-```
+Redis is implemented as a supporting infrastructure layer between the
+FastAPI application and persistent application services.
 
-*   **Connection:** FastAPI communicates with Redis via an asynchronous client (`redis.asyncio`).
-*   **Connection Pooling:** A global connection pool is initialized on application startup to prevent connection overhead per request.
-*   **Logical Databases:** Use a single DB (DB `0`) to simplify infrastructure and cluster compatibility. Logical separation is handled via key prefixes.
-*   **Access Layer:** Application code never calls Redis directly. A dedicated repository/service layer abstracts Redis operations.
-*   **Failure Handling:** Redis calls are wrapped in try-except blocks. Timeouts are kept short (e.g., 50ms for cache gets) to prevent cascading failures.
+#### Architecture
 
+React Frontend
+      |
+      v
+FastAPI Backend
+      |
+      +------------------+
+      |                  |
+      v                  v
+PostgreSQL            Redis
+Source of Truth       Fast/Temporary Layer
+                           |
+                +----------+----------+
+                |          |          |
+              Cache      State      Pub/Sub
+                |
+            Counters
+                |
+          Coordination
+
+#### PostgreSQL
+
+PostgreSQL remains the authoritative source of truth for permanent
+application data.
+
+Redis must not be required to recover permanent business data.
+
+#### FastAPI
+
+FastAPI is the primary application layer that communicates with Redis.
+
+Redis access should be centralized through a reusable connection and
+service layer rather than creating independent Redis connections
+throughout the application.
+
+#### Redis
+
+Redis is responsible for:
+
+- Caching
+- Temporary state
+- Temporary counters
+- Pub/Sub
+- Real-time coordination
+- Distributed coordination where required
+
+#### Failure Principle
+
+Redis is a supporting layer and must not become a single point of
+failure for permanent business data.
+
+If Redis becomes unavailable, permanent PostgreSQL-backed operations
+must remain protected. Features that depend on temporary Redis state
+may degrade according to their defined fallback behavior.
+
+#### Local Docker Architecture
+
+Docker Compose will contain the following infrastructure:
+
+- PostgreSQL
+- Redis
+- FastAPI
+
+The React frontend communicates with FastAPI, while FastAPI communicates
+with PostgreSQL and Redis.
 ---
 
-### 7.5 — Redis Key Naming Convention
-**Standard:** `chat_app:{domain}:{identifier}:{attribute}`
+### 7.5 Redis Key Naming Convention
 
-**Examples:**
-*   `chat_app:user:123:profile` (Cache)
-*   `chat_app:room:456:members` (Cache/State)
-*   `chat_app:session:blacklist:789` (Auth)
-*   `chat_app:rate_limit:user:123:api` (Rate Limiting)
-*   `chat_app:presence:user:123:status` (Presence)
-*   `chat_app:translation:en:es:v1:hash123` (Translation Cache)
+Redis keys use a consistent namespaced format:
 
+`multilinguinal:<environment>:<domain>:<identifier>:<attribute>`
+
+Examples:
+
+- `multilinguinal:dev:translation:<key>`
+- `multilinguinal:dev:presence:<user_id>`
+- `multilinguinal:dev:typing:<room_id>:<user_id>`
+- `multilinguinal:dev:rate_limit:<user_id>`
+- `multilinguinal:dev:session:<session_id>`
+- `multilinguinal:dev:workflow:<execution_id>`
+
+#### Rules
+
+- Use lowercase names.
+- Use `:` as the separator.
+- Use predictable domain names.
+- Use UUIDs or stable identifiers where required.
+- Never store secrets directly in Redis keys.
+- Redis key construction should be centralized in the Redis service/key-builder layer.
+
+#### Completed
+
+- [x] Redis key namespace defined
+- [x] Environment separation defined
+- [x] Domain naming defined
+- [x] Key construction centralization defined
 ---
 
-### 7.6 — TTL Strategy
-Every key written to Redis **must** have a Time-To-Live (TTL).
+### 7.6 Redis TTL Strategy
 
-| Data Type | TTL Duration | Expiry Behavior | Recreation |
-| :--- | :--- | :--- | :--- |
-| **Rate Limit** | 1 min - 1 hour | Auto-deletes | Counter resets on next request |
-| **Presence** | 60 seconds | User marked offline | Refreshed via client heartbeat |
-| **App Cache** | 15 min - 24 hours | Cache Miss | Re-fetched from PostgreSQL |
-| **Translations** | 30 - 90 days | Cache Miss | Re-fetched from LLM/Translation API |
-| **Temp Locks** | 5 - 30 seconds | Lock released | Re-acquired if task retries |
+TTL (Time To Live) defines how long Redis data remains before it is
+automatically removed.
 
+#### Initial TTL
+
+| Data | TTL |
+|---|---:|
+| Translation cache | 24 hours |
+| General application cache | 1 hour |
+| Presence | 60 seconds |
+| Typing indicator | 5 seconds |
+| Rate-limit counters | Rate-limit window |
+| Temporary workflow state | 30 minutes |
+| WebSocket temporary state | 60 seconds |
+| Distributed locks | 30 seconds |
+| Temporary counters | Use-case dependent |
+
+#### Rules
+
+- TTL must be set when temporary Redis data is created.
+- Redis handles expiration automatically.
+- TTL must not be used for permanent business data.
+- PostgreSQL remains the source of truth.
+- Expired cache/state must be safely recreatable.
+- TTL values should be configurable rather than scattered as hardcoded
+  values throughout the application.
+
+#### Completed
+
+- [x] TTL strategy defined
+- [x] Initial TTL values defined
+- [x] Expiration responsibility defined
+- [x] PostgreSQL fallback principle defined
+- [x] Configurable TTL requirement defined
 ---
 
-### 7.7 — Cache Strategy
-*   **Workflow:** Cache Miss → Fetch from PostgreSQL → Write to Redis (with TTL) → Return Result
-*   **Cache Invalidation:** Event-driven. When a record is updated in PostgreSQL, the corresponding Redis key is explicitly deleted.
-*   **Stale Data:** Prefer cache invalidation (deletion) over cache updates to prevent race conditions.
-*   **Cache Stampede Prevention:** For heavy queries, use a short-lived distributed lock to ensure only one worker fetches from Postgres and populates the cache.
+### 7.7 Redis Cache Strategy
+
+Redis uses a cache-aside strategy.
+
+#### Cache Flow
+
+FastAPI Request
+      |
+      v
+Redis GET
+      |
+   +--+--+
+   |     |
+  HIT   MISS
+   |     |
+Return  Fetch from source
+          |
+       Store in Redis
+          |
+        Return
+
+#### Cached Data
+
+Phase 1 cache candidates:
+
+- Translation results
+- Language configuration
+- Frequently accessed read-heavy application data
+
+Redis must not be used as the source of truth for permanent business
+data.
+
+#### Cache Invalidation
+
+When cached data changes:
+
+1. Update PostgreSQL.
+2. Remove or refresh the related Redis key.
+3. Future requests rebuild the cache when required.
+
+#### Rules
+
+- Use cache-aside for application caching.
+- Every cache entry must have an appropriate TTL.
+- Cache misses must safely fetch data from the source.
+- Redis failure must not cause permanent data loss.
+- Cache keys must use the centralized key-building convention.
+
+#### Completed
+
+- [x] Cache-aside strategy defined
+- [x] Cache candidates defined
+- [x] Cache invalidation defined
+- [x] Redis failure behavior defined
+- [x] PostgreSQL source-of-truth rule maintained
 
 ---
+### 7.8 Translation Cache Strategy
 
-### 7.8 — Translation Cache Strategy
-Translations are highly repetitive and costly.
+Translation results are cached in Redis to reduce repeated calls to
+the translation service.
 
-*   **Cache Identity (Key):** `chat_app:translation:{source_language}:{target_language}:{model_version}:{md5_hash_of_source_text}`
-*   **TTL:** Long-lived (e.g., 30 days).
-*   **Invalidation:** Automatic via TTL. If the underlying translation model is swapped (e.g., moving from v1 to v2), the model version in the key changes, inherently starting a fresh cache.
+#### Cache Key
 
+The cache identifier is generated from:
+
+- Source language
+- Target language
+- Source text
+- Translation model/version
+- Relevant translation options
+
+A deterministic hash is generated from these values.
+
+Key format:
+
+`multilinguinal:<environment>:translation:<hash>`
+
+#### Translation Flow
+
+Translation Request
+      |
+      v
+Generate Cache Key
+      |
+      v
+Redis GET
+   |       |
+  HIT     MISS
+   |       |
+Return   Translation Service
+            |
+      Save required DB record
+            |
+      Save Redis + TTL
+            |
+          Return
+
+#### Rules
+
+- Redis stores translation results as a cache only.
+- PostgreSQL `message_translations` remains the persistent record.
+- Different languages, models, versions, or options must generate
+  different cache keys.
+- Translation cache TTL is 24 hours.
+- Cache misses must safely continue to the translation service.
+- Redis failure must not cause permanent data loss.
+
+#### Completed
+
+- [x] Translation cache key strategy defined
+- [x] Deterministic cache identifier defined
+- [x] Cache HIT/MISS flow defined
+- [x] PostgreSQL relationship defined
+- [x] Model/version isolation defined
+- [x] Translation cache TTL defined
+- [x] Redis failure behavior defined
 ---
 
-### 7.9 — Session / Temporary Authentication Data
-*   **PostgreSQL:** Stores permanent user credentials and long-lived refresh tokens.
-*   **Redis:** Stores blacklisted JWT tokens (on logout) and fast temporary session states (e.g., OAuth flow states, password reset temporary codes).
-*   **Rule:** We do not duplicate the entire user session in Redis. JWTs remain stateless; Redis is only queried to check if a valid JWT has been prematurely revoked.
+### 7.9 Session / Temporary Authentication Data
 
+PostgreSQL remains the authoritative session store through the
+`user_sessions` table.
+
+Redis is used only for temporary or fast-access authentication data.
+
+#### Redis Usage
+
+- Short-lived session lookup/cache
+- Login attempt counters
+- Temporary authentication state
+- Temporary verification/challenge data when required
+
+#### Rules
+
+- Redis must not replace `user_sessions`.
+- PostgreSQL remains the source of truth for sessions.
+- Sensitive authentication data should not be unnecessarily stored in Redis.
+- Temporary authentication data must have TTL.
+- Redis failure must not cause permanent session-data loss.
+
+#### Completed
+
+- [x] PostgreSQL session ownership defined
+- [x] Redis temporary authentication role defined
+- [x] Session cache approach defined
+- [x] Sensitive-data rule defined
+- [x] TTL requirement defined
 ---
 
 ### 7.10 — Rate Limiting
-Rate limiting protects the application from abuse and controls API costs using sliding or fixed window counters (`INCR` + `EXPIRE`).
+### 7.10 Rate Limiting
 
-| Action | Limit | Window | Exceeded Response |
-| :--- | :--- | :--- | :--- |
-| **Login Attempts** | 5 | 15 mins | `429 Too Many Requests` |
-| **Message Sending** | 60 | 1 min | `429 Too Many Requests` |
-| **Translations** | 100 | 1 min | `429 Too Many Requests` |
-| **File Uploads** | 10 | 1 hour | `429 Too Many Requests` |
-| **Agent Execution** | 20 | 1 min | `429 Too Many Requests` |
+Redis is used for temporary API request counters.
 
----
+#### Initial Limits
 
-### 7.11 — Presence / Online Status
-Maintains the real-time status of users.
+| Category | Limit | Window |
+|---|---:|---:|
+| General API | 60 requests | 1 minute |
+| Authentication | 10 requests | 1 minute |
+| Translation | 30 requests | 1 minute |
 
-*   **Status Types:** `ONLINE`, `OFFLINE`, `TYPING`.
-*   **Flow:**
-    1. WebSocket connects → Sets `chat_app:presence:user:{id}` to `ONLINE` (TTL: 60s).
-    2. Client sends heartbeat every 30s → Updates TTL.
-    3. Client disconnects normally → Explicitly deletes key (`OFFLINE`).
-    4. Client drops connection abruptly → TTL expires automatically (`OFFLINE`).
+Limits must be configurable.
 
----
+#### Key Format
 
-### 7.12 — WebSocket / Real-Time Redis Support
-To support multiple FastAPI instances, WebSockets cannot hold state strictly in local memory.
+`multilinguinal:<environment>:rate_limit:<identifier>:<endpoint>`
 
-**Architecture:**
-```text
-Client 1 
-  ↓ (WebSocket)
-FastAPI Instance A
-  ↓ (Publish)
-Redis Pub/Sub 
-  ↓ (Subscribe)
-FastAPI Instance B
-  ↓ (WebSocket)
-Client 2
-```
+The identifier is normally the authenticated user ID. For
+unauthenticated requests, the client IP may be used.
 
----
+#### Flow
 
-### 7.13 — Redis Pub/Sub Strategy
-*   **Channels:**
-    *   `chat_app:room:{room_id}:messages` (New chat messages)
-    *   `chat_app:user:{user_id}:notifications` (Direct user alerts)
-*   **Message Format:** JSON payloads containing `event_type`, `payload`, and `timestamp`.
-*   **Failure Behavior:** Pub/Sub is "fire and forget". Messages must also be saved to PostgreSQL first. Redis Pub/Sub is strictly for UI updates, not guaranteed delivery.
+Request
+   |
+   v
+Redis Counter
+   |
+Within limit?
+  |       |
+ Yes      No
+  |       |
+Allow   HTTP 429
 
----
+#### Implementation
 
-### 7.14 — Distributed Locking
-Redis locks will be used sparingly to prevent race conditions in asynchronous environments.
+Use a Redis atomic counter with a TTL-based rate-limit window.
 
-*   **Use Cases:** Preventing duplicate LangGraph agent executions triggered by the same event; deduplicating heavy external API calls.
-*   **Implementation:** Redis `SET resource_name my_random_value NX PX 30000`.
-*   **Rule:** If a PostgreSQL unique constraint or transaction can easily solve the problem, prefer PostgreSQL over Redis locks.
+#### Phase 2 — Parked
 
----
+Advanced enterprise-scale rate limiting is deferred to Phase 2,
+including Redis Cluster, distributed rate limiting, multi-region
+support, and advanced capacity planning.
 
-### 7.15 — Agent / Workflow Temporary State
-For LangGraph/Agent execution:
+#### Rules
 
-*   **Temporary Execution State:** Short-lived memory for an agent currently running a thought-loop will be stored in Redis.
-*   **Permanent Execution Record:** Once the agent concludes a workflow step or outputs a final decision, the result is written to PostgreSQL. Redis is then cleared of that workflow state.
+- Rate-limit configuration must be configurable.
+- Counters are temporary Redis data.
+- Counters use TTL-based windows.
+- PostgreSQL is not used for request counters.
+- Rate limiting should be implemented through a reusable FastAPI
+  service/dependency.
+
+#### Completed
+
+- [x] Rate-limit categories defined
+- [x] Initial limits defined
+- [x] Key structure defined
+- [x] Redis counter strategy defined
+- [x] TTL window defined
+- [x] Configurable limits defined
+- [x] Enterprise scaling parked for Phase 2
 
 ---
 
-### 7.16 — Redis Persistence
-*   **Decision:** **RDB (Redis Database) Snapshots Enabled.**
-*   **Reasoning:** While Redis does not hold authoritative data, losing rate limit counters, translation caches, and workflow locks abruptly can cause a massive traffic spike to PostgreSQL and external APIs upon restart.
-*   **Configuration:** Save snapshot every 5 minutes if at least 100 keys changed (`save 300 100`). Append-Only File (AOF) is disabled.
+### 7.11 Presence / Online Status
+
+Redis stores temporary user presence information.
+
+#### Key Format
+
+`multilinguinal:<environment>:presence:<user_id>`
+
+#### Presence Flow
+
+User connects
+      |
+      v
+Set Redis presence
+      |
+    ONLINE
+      |
+Heartbeat/activity
+      |
+Refresh TTL
+      |
+No heartbeat
+      |
+TTL expires
+      |
+   OFFLINE
+
+#### TTL
+
+Presence keys use a 60-second TTL.
+
+The TTL is refreshed when the user sends a valid heartbeat or
+activity update.
+
+#### Rules
+
+- Live presence is stored in Redis.
+- Presence data is temporary.
+- Presence keys must have a TTL.
+- PostgreSQL is not used for continuous presence updates.
+- Expired presence means the user is considered offline.
+- Only the minimum required presence data should be stored.
+
+#### Completed
+
+- [x] Presence ownership defined
+- [x] Redis key structure defined
+- [x] Online/offline flow defined
+- [x] Presence TTL defined
+- [x] Heartbeat refresh defined
+- [x] PostgreSQL write avoidance defined
+---
+
+### 7.12 WebSocket / Real-Time Redis Support
+
+Redis provides temporary coordination between FastAPI instances for real-time WebSocket communication.
+
+#### Architecture
+
+Client
+  |
+  v
+FastAPI / WebSocket
+  |
+  v
+Redis
+  |
+  v
+Other FastAPI / WebSocket instances
+  |
+  v
+Connected Clients
+
+#### Redis Responsibilities
+
+Redis may distribute temporary real-time events such as:
+
+- New message notifications
+- Presence updates
+- Typing indicators
+- Message status updates
+- Room events
+
+The actual message and permanent business data remain in PostgreSQL.
+
+#### Event Flow
+
+User sends message
+      |
+      v
+FastAPI
+      |
+      v
+PostgreSQL
+      |
+      v
+Publish event
+      |
+      v
+Redis
+      |
+      v
+Subscribed FastAPI instances
+      |
+      v
+WebSocket clients
+
+Permanent data must be persisted before publishing the real-time
+event.
+
+#### Channel Format
+
+`multilinguinal:<environment>:room:<room_id>`
+
+#### Rules
+
+- Redis is used for real-time event distribution.
+- Redis is not the permanent message store.
+- PostgreSQL remains the source of truth.
+- Real-time events are temporary.
+- WebSocket logic should be separated from Redis connection logic.
+
+#### Completed
+
+- [x] WebSocket/Redis relationship defined
+- [x] Real-time event types defined
+- [x] Event flow defined
+- [x] Channel naming defined
+- [x] PostgreSQL persistence rule defined
 
 ---
 
-### 7.17 — Redis Failure Strategy
+### 7.13 Redis Pub/Sub Strategy
 
-| Feature | Action if Redis Fails |
-| :--- | :--- |
-| **Database Cache** | **Bypass** - Fetch directly from PostgreSQL. |
-| **Translation Cache** | **Bypass** - Call external API directly. |
-| **Rate Limiting** | **Fail Open** - Allow request (prioritize availability). |
-| **WebSockets** | **Degrade** - Broadcasts only work within the local FastAPI instance. |
-| **Agent Locks** | **Fail Closed** - Halt agent execution to prevent duplicate corruptions. |
+Redis Pub/Sub is used for temporary real-time event distribution
+between FastAPI instances.
+
+#### Publisher / Subscriber
+
+FastAPI instance
+      |
+   PUBLISH
+      |
+    Redis
+      |
+  SUBSCRIBE
+   /      \
+FastAPI  FastAPI
+   |        |
+WebSocket WebSocket
+
+#### Phase 1 Events
+
+- New message notifications
+- Presence changes
+- Typing indicators
+- Message status changes
+- Room events
+
+#### Channel Format
+
+`multilinguinal:<environment>:room:<room_id>`
+
+#### Important Rules
+
+- Pub/Sub is used only for temporary event delivery.
+- Pub/Sub is not the permanent message store.
+- Pub/Sub is not used as the source of truth.
+- Permanent data must be stored in PostgreSQL.
+- Subscribers may miss events while disconnected.
+- Missed events must be recoverable from authoritative application
+  state when required.
+- Pub/Sub logic should be isolated from business logic.
+
+#### Completed
+
+- [x] Publisher/subscriber model defined
+- [x] Event types defined
+- [x] Channel structure defined
+- [x] Temporary-event rule defined
+- [x] PostgreSQL source-of-truth rule defined
+- [x] Missed-event behavior defined
 
 ---
 
-### 7.18 — Redis Docker Setup
-`docker-compose.yml` snippet:
+### 7.14 Distributed Locking
 
-```yaml
-services:
-  redis:
-    image: redis:7.2-alpine
-    container_name: chat_app_redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --save 300 100 --requirepass ${REDIS_PASSWORD}
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - app_network
+Redis distributed locks are used only for short-lived application-level coordination when multiple processes may perform the same operation
+concurrently.
 
-volumes:
-  redis_data:
-```
+#### Key Format
+
+`multilinguinal:<environment>:lock:<resource>`
+
+#### Flow
+
+Process A ──┐
+            ↓
+        Redis Lock
+            ↑
+Process B ──┘
+
+Only the process that acquires the lock performs the protected operation.
+
+#### Phase 1 Use Cases
+
+- Prevent duplicate processing
+- Protect short critical sections
+- Coordinate temporary resource ownership
+- Prevent duplicate translation/workflow execution when required
+
+#### Rules
+
+- Use locks only when an actual concurrency requirement exists.
+- Every lock must have a TTL.
+- Default lock TTL is 30 seconds.
+- Locks must be released after successful completion.
+- Lock expiry must safely handle process failure.
+- Redis locks must not replace PostgreSQL transactions or constraints.
+- Lock acquisition must be atomic.
+
+#### Completed
+
+- [x] Distributed locking purpose defined
+- [x] Lock key structure defined
+- [x] Initial use cases defined
+- [x] Lock TTL defined
+- [x] Failure behavior defined
+- [x] PostgreSQL integrity rule defined
+---
+
+### 7.15 Agent / Workflow Temporary State
+
+Redis may store temporary state required while an agent or workflow is executing.
+
+#### Key Format
+
+`multilinguinal:<environment>:workflow:<execution_id>`
+
+#### Temporary Data
+
+- Current workflow step
+- Temporary agent context
+- Temporary tool results
+- Retry information
+- Execution progress
+- Short-lived coordination state
+
+#### Flow
+
+Agent starts
+    |
+    v
+Create Redis state
+    |
+    v
+Update during execution
+    |
+    v
+Workflow completes
+    |
+    v
+Persist required permanent data
+    |
+    v
+Remove temporary Redis state
+
+#### TTL
+
+Temporary workflow state uses a 30-minute TTL.
+
+#### Rules
+
+- Redis stores temporary workflow state only.
+- Permanent execution records remain in PostgreSQL.
+- Redis state must have a TTL.
+- Workflow recovery must not depend exclusively on Redis.
+- Expired state must be handled safely.
+- Only required temporary data should be stored.
+
+#### Completed
+
+- [x] Workflow state responsibility defined
+- [x] Temporary data defined
+- [x] Key structure defined
+- [x] TTL defined
+- [x] PostgreSQL persistence boundary defined
+---
+
+### 7.16 Redis Persistence
+
+Redis persistence is used only to improve recovery and restart behavior. It is not used as a durability mechanism for permanent application data.
+
+#### Phase 1 Strategy
+
+Redis will use **RDB snapshots**.
+
+PostgreSQL remains the authoritative source of truth for all permanent business data.
+
+#### Persistence Responsibilities
+
+RDB persistence may preserve:
+
+- Translation cache
+- General application cache
+- Temporary workflow state
+- Temporary counters
+- Other reconstructable Redis state
+
+The application must remain functional when Redis data is lost and rebuildable.
+
+#### Important Rules
+
+- Redis persistence must not replace PostgreSQL persistence.
+- Redis data must always be treated as temporary or reconstructable.
+- Redis loss must not cause permanent business-data loss.
+- Redis locks must not rely on persistence for correctness.
+- Pub/Sub messages are not persisted.
+- TTL-based expiration remains active after Redis restart.
+
+#### Phase 2
+
+AOF persistence and other Redis durability optimizations may be evaluated later based on actual workload and reliability requirements.
+
+#### Completed
+
+- [x] Redis persistence responsibility defined
+- [x] RDB selected for Phase 1
+- [x] PostgreSQL source-of-truth rule confirmed
+- [x] Redis data recovery principle defined
+- [x] Pub/Sub persistence limitation defined
+- [x] AOF deferred to Phase 2File (AOF) is disabled.
 
 ---
 
-### 7.19 — Redis Configuration
-Application environment variables required for Redis:
+### 7.17 Redis Failure Strategy
 
-```env
-REDIS_HOST=redis
-REDIS_PORT=6379
-REDIS_PASSWORD=your_secure_password
-REDIS_DB=0
-REDIS_TIMEOUT_MS=500
-```
+Redis is a supporting infrastructure layer. Redis failure must not cause permanent business-data loss.
+
+#### Failure Principle
+
+PostgreSQL remains the source of truth.
+
+If Redis becomes unavailable, the application should bypass Redis
+where possible and continue using the authoritative source.
+
+#### Failure Behavior
+
+| Redis Feature | Failure Behavior |
+|---|---|
+| General cache | Bypass cache |
+| Translation cache | Perform translation normally |
+| Presence | Presence may temporarily degrade |
+| Typing indicators | Typing state may temporarily degrade |
+| Pub/Sub | Real-time event delivery may temporarily degrade |
+| Temporary workflow state | Workflow must protect required permanent state |
+| Distributed locks | Operation must safely handle lock failure |
+| Rate limiting | Apply endpoint-specific failure policy |
+
+#### Cache Failure Flow
+
+Request
+   |
+   v
+Redis unavailable
+   |
+   v
+Bypass Redis
+   |
+   v
+Source Service / PostgreSQL
+   |
+   v
+Return response
+
+#### Rules
+
+- Redis failure must not cause permanent data loss.
+- Cache failures should normally fail open.
+- Translation requests must continue without the translation cache.
+- Redis operations should use short connection/operation timeouts.
+- Redis errors must be logged.
+- Redis failure must not crash unrelated application requests.
+- Temporary Redis state must never be treated as the only copy of
+  required permanent business data.
+- Real-time features may temporarily degrade when Redis is unavailable.
+
+#### Rate Limiting
+
+Rate-limit failure behavior will be finalized together with the
+authentication and authorization implementation.
+
+Security-sensitive endpoints may use stricter failure handling than
+general application caching.
+
+#### Completed
+
+- [x] Redis failure principle defined
+- [x] Cache fallback defined
+- [x] Translation-cache fallback defined
+- [x] Real-time degradation behavior defined
+- [x] Temporary-state protection defined
+- [x] Timeout requirement defined
+- [x] Error logging requirement defined
+---
+
+### 7.18 Redis Docker Setup
+
+Redis is included in the local Docker development environment.
+
+#### Redis Image
+
+Use the official:
+
+`redis:7-alpine`
+
+#### Container
+
+Container name:
+
+`chat_application_REDIS`
+
+#### Docker Service
+
+The Redis service is named:
+
+`redis`
+
+FastAPI should connect to Redis using the Docker service name rather
+than `localhost` when running inside Docker.
+
+Example:
+
+`redis://redis:6379`
+
+#### Persistence
+
+Redis RDB persistence is enabled for Phase 1.
+
+Redis data is stored using a Docker volume so that container recreation
+does not automatically remove the Redis persistence files.
+
+Example volume:
+
+`redis_data:/data`
+
+#### Docker Architecture
+
+Docker Compose
+
+    |
+    +------------------+
+    |                  |
+    v                  v
+PostgreSQL            Redis
+    |                  |
+    +--------+---------+
+             |
+             v
+          FastAPI
+
+#### Phase 1 Rules
+
+- Use `redis:7-alpine`.
+- Use a dedicated Redis Docker service.
+- Use a Docker volume for Redis persistence.
+- FastAPI connects through the Docker service name.
+- Redis Cluster is not required in Phase 1.
+- Redis security configuration is handled separately.
+- Redis configuration values are centralized and configurable.
+- Redis must remain a supporting infrastructure service.
+
+#### Completed
+
+- [x] Redis Docker image selected
+- [x] Redis service defined
+- [x] Container naming defined
+- [x] Docker networking approach defined
+- [x] Redis persistence volume defined
+- [x] Phase 1 Docker scope defined
+
+---
+
+### 7.19 Redis Configuration
+
+Redis configuration is centralized and loaded through environment variables.
+
+#### Configuration
+
+The application should support the following Redis configuration:
+
+| Setting | Purpose | Phase 1 |
+|---|---|---|
+| REDIS_HOST | Redis hostname | `redis` in Docker |
+| REDIS_PORT | Redis port | `6379` |
+| REDIS_DB | Redis database number | `0` |
+| REDIS_TIMEOUT | Connection/operation timeout | Configurable |
+| REDIS_URL | Complete Redis connection URL | Configurable |
+
+#### Docker
+
+When FastAPI runs inside Docker:
+
+`REDIS_HOST=redis`
+
+Example connection:
+
+`redis://redis:6379/0`
+
+When FastAPI runs directly on the host during local development:
+
+`REDIS_HOST=localhost`
+
+#### Configuration Rules
+
+- Redis configuration must come from environment variables.
+- Redis connection details must not be hardcoded in business logic.
+- Redis settings should be represented by a centralized application
+  configuration object.
+- Redis timeouts must be configurable.
+- Redis database `0` is used for Phase 1.
+- Environment-specific configuration should be supported.
+- Redis credentials will be handled separately by the security design.
+
+#### Phase 1 Scope
+
+The initial Redis configuration does not include:
+
+- Redis Cluster configuration
+- Sentinel configuration
+- Multi-region configuration
+- Advanced Redis topology settings
+
+These remain deferred to Phase 2 if required.
+
+#### Completed
+
+- [x] Redis configuration parameters defined
+- [x] Environment-variable strategy defined
+- [x] Docker hostname defined
+- [x] Local development hostname defined
+- [x] Redis database defined
+- [x] Timeout configuration defined
+- [x] Centralized configuration requirement defined
+- [x] Advanced Redis topology deferred
 
 ---
 
