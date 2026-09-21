@@ -23,9 +23,9 @@ services:
       # - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro  # SQL initialization script for database setup
       # CHANGE THIS LINE - Mount entire folder instead
       #- ./database:/docker-entrypoint-initdb.d:ro  # ← FIXED HERE
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      - ./database/seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
-      - ./database/select.sql:/docker-entrypoint-initdb.d/03_select.sql:ro
+      - ./app/infrastructure/database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./app/infrastructure/database/seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
+      - ./app/infrastructure/database/select.sql:/docker-entrypoint-initdb.d/03_select.sql:ro
 
     healthcheck:
       # Health check to verify PostgreSQL is ready
