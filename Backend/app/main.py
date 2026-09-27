@@ -1,12 +1,15 @@
 from fastapi import FastAPI,HTTPException,requests
+from core.lifespan import lifespan
 import uvicorn
+
 
 app = FastAPI(
     title="Multi Linguinal application",
     version= "0.0.1",
-    summary="API DOC for the backend application which hold the Translation APP"
+    summary="API DOC for the backend application which hold the Translation APP",
+    lifespan= lifespan
 )
-
+ 
 
 @app.get('/health',tags=['APP Services'], summary="Check API, postgres DB and Redis up and running")
 def main():

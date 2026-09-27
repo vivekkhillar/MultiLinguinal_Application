@@ -10,8 +10,7 @@ class RedisConnectionManager:
         self.redis_timeout=self.conf.redis_timeout
         self.redis_password=self.conf.redis_password
         self._client: Redis | None = None
-        
-    
+            
     # Try to connect redis database 
     async def connect(self) -> None:
         
@@ -27,7 +26,6 @@ class RedisConnectionManager:
 
         except Exception as e:
             raise RuntimeError ("Redis connection is failed ") from e
-
 
     # Get the client details for which the redis connected
     def get_client(self) -> Redis:

@@ -13,3 +13,4 @@ class config(BaseSettings):
     redis_host : str
     redis_timeout : int
     redis_password : str
+    db_url:str

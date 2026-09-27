@@ -14,8 +14,8 @@ services:
 
     ports:
       # Port mapping: host_port:container_port
-      - "32030:32031" # Host port 32030 maps to container port 32031
-    command: -p 32031 # Custom port configuration (default PostgreSQL port is 5432)
+      - "32030:32030" # Host port 32030 maps to container port 32031
+    command: -p 32030 # Custom port configuration (default PostgreSQL port is 5432)
 
     volumes:
       # Persistent data storage and initialization scripts
