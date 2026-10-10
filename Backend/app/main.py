@@ -1,4 +1,4 @@
-from fastapi import FastAPI,HTTPException,requests
+from fastapi import FastAPI,requests
 from api.routers.health import router
 from core.lifespan import lifespan
 import uvicorn

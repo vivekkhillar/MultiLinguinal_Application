@@ -16,23 +16,23 @@ class HealthCheck:
         # Check data base is up and running
         try:
             await self.database_manager.ping()
-            service_status["DataBase"] = "healthy"
+            service_status["database"] = "healthy"
 
         except Exception as e:
-            service_status["Database"] = "unhealthy"
+            service_status["database"] = "unhealthy"
             is_healthy = False
         
         try:
             await self.redis_manager.get_client().ping()
-            service_status["Redis"] = "healthy"
+            service_status["redis"] = "healthy"
 
         except Exception as e:
-            service_status["Redis"] = "unhealthy"
+            service_status["redis"] = "unhealthy"
             is_healthy = False
 
         payload = {
 
-            "status"  :  "Ok" if is_healthy else "error",
+            "status"  :  "healthy" if is_healthy else "unhealthy",
             "services" : service_status
         }
 
