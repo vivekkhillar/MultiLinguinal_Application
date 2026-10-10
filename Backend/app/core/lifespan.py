@@ -11,18 +11,29 @@ class LifeSpan:
     
     @asynccontextmanager
     async def lifespanhandler(self, app: FastAPI):
+        try:
+            await self.redis_manager.connect()
+            print("Redis start")
+     
+            await self.database_manager.connect()
+            print("Database start")
+        
+            yield
 
-        await self.redis_manager.connect()
-        print("Database start")
-        await self.database_manager.connect()
-        print("Redis start")
+        finally:
 
-        yield
+            try: 
+                await self.redis_manager.close()
+                print("Redis close")
 
-        await self.redis_manager.close()
-        print("Redis close")
-        await self.database_manager.close()
-        print("Database close")
+            except Exception as e:
+                print(f"Error While closing the Redis {e}")
+            
+            try:
+                await self.database_manager.close()
+                print("Database close")
+            except Exception as e:
+                print(f"Error While closing the Database {e}")
 
 lifespan_instance = LifeSpan()
 lifespan= lifespan_instance.lifespanhandler
