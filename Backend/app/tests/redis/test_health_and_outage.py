@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 import pytest
 from httpx import AsyncClient, ASGITransport
+import redis.exceptions
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
@@ -13,43 +14,56 @@ from core.lifespan import lifespan_instance
 @pytest.mark.asyncio
 async def test_health_endpoint_success():
     """Verify GET /health returns HTTP 200 when services are healthy."""
-    # 1. Connect Database & Redis on lifespan_instance
     await lifespan_instance.database_manager.connect()
     await lifespan_instance.redis_manager.connect()
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        response = await ac.get("/health")
-        
-        # Useful debug print if something fails
-        print(f"Response ({response.status_code}): {response.json()}")
-        
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "healthy"
-        assert data["services"]["database"] == "healthy"
-        assert data["services"]["redis"] == "healthy"
-        print(f"Health Check Passed (200 OK): {data}")
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            response = await ac.get("/health")
+            
+            print(f"Response ({response.status_code}): {response.json()}")
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "healthy"
+            assert data["services"]["database"] == "healthy"
+            assert data["services"]["redis"] == "healthy"
+            print(f"Health Check Passed (200 OK): {data}")
+    finally:
+        # Guaranteed cleanup in finally block
+        await lifespan_instance.redis_manager.close()
+        await lifespan_instance.database_manager.close()
 
 @pytest.mark.asyncio
 async def test_health_endpoint_redis_outage():
-    """Verify GET /health returns HTTP 503 when Redis is disconnected."""
-    # Ensure database is connected
+    """Verify GET /health returns HTTP 503 during a Redis network outage."""
     await lifespan_instance.database_manager.connect()
+    await lifespan_instance.redis_manager.connect()
 
-    # Simulate Redis Outage by closing Redis client
-    await lifespan_instance.redis_manager.close()
-    
+    # Save original ping method
+    original_client = lifespan_instance.redis_manager.get_client()
+    original_ping = original_client.ping
+
+    # Simulate network failure / connection refused error on ping()
+    async def mock_failed_ping():
+        raise redis.exceptions.ConnectionError("Error 10061 connecting to localhost:6379. Connection refused.")
+
+    original_client.ping = mock_failed_ping
+
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             response = await ac.get("/health")
             assert response.status_code == 503
+            
             data = response.json()
             assert data["detail"]["status"] == "unhealthy"
+            assert data["detail"]["services"]["database"] == "healthy"
             assert data["detail"]["services"]["redis"] == "unhealthy"
             print(f"Redis Outage Check Passed (503 Service Unavailable): {data}")
     finally:
-        # Recovery: Reconnect Redis & Database after test
-        await lifespan_instance.redis_manager.connect()
+        # Restore original ping method & clean up connections
+        original_client.ping = original_ping
+        await lifespan_instance.redis_manager.close()
         await lifespan_instance.database_manager.close()
 
 async def main():
