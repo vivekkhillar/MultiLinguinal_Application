@@ -20,13 +20,31 @@ class DBConnectionManager:
         
     
     async def ping(self):
-
+        
         if not self.session_maker:
             raise RuntimeError("Data base not connected connect the data base first")
         
         async with self.session_maker() as session:
-            result = await session.execute(text("select 1"))
-            return result.scalar_one()
+
+            result = await session.execute(text("""select
+                                                    language_id,
+                                                    language_code,
+                                                    language_name,
+                                                    native_name,
+                                                    script,
+                                                    variant,
+                                                    is_standard_language,
+                                                    is_user_selectable,
+                                                    is_translation_supported,
+                                                    status,
+                                                    created_at,
+                                                    updated_at
+                                                from
+                                                    language_configurations;
+                                                """))
+            # print(type(result)) If you print then it return the class of and if try to return the output then call the function of the class 
+            # fetch all for all query
+            return result.fetchone()
 
     async def close(self):
 

@@ -1,4 +1,5 @@
 from fastapi import FastAPI,HTTPException,requests
+from api.routers.health import router
 from core.lifespan import lifespan
 import uvicorn
 
@@ -11,10 +12,8 @@ app = FastAPI(
 )
  
 
-@app.get('/health',tags=['APP Services'], summary="Check API, postgres DB and Redis up and running")
-def main():
-    return {"status" :"Ok"}
 
+app.include_router(router)
 
 if __name__ == "__main__":
     uvicorn.run("main:app",host="0.0.0.0",port=8080, reload = True)

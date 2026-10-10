@@ -13,12 +13,10 @@ class LifeSpan:
     async def lifespanhandler(self, app: FastAPI):
 
         await self.redis_manager.connect()
-        print("Redis start")
+        print("Database start")
         await self.database_manager.connect()
         result = await self.database_manager.ping()
-        print(f"Sql Query executed : {result}")
-        print("Database start")
-
+        print("Redis start")
 
         yield
 
