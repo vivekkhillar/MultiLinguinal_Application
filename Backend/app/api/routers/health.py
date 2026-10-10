@@ -12,7 +12,7 @@ async def health():
         return result
 
     except RuntimeError as e:
-
+        detail_payload = e.args[0] if e.args and isinstance(e.args[0], dict) else str(e)
         raise HTTPException(
             status_code= status.HTTP_503_SERVICE_UNAVAILABLE,
             detail = str(e)

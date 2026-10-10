@@ -31,9 +31,14 @@ class HealthCheck:
             is_healthy = False
 
         payload = {
+
             "status"  :  "Ok" if is_healthy else "error",
             "services" : service_status
         }
+
+
+        if not is_healthy:
+            raise RuntimeError(payload)
 
         return payload
 
