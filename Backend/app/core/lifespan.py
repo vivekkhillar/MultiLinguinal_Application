@@ -15,7 +15,6 @@ class LifeSpan:
         await self.redis_manager.connect()
         print("Database start")
         await self.database_manager.connect()
-        result = await self.database_manager.ping()
         print("Redis start")
 
         yield

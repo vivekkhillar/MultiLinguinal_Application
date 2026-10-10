@@ -26,25 +26,10 @@ class DBConnectionManager:
         
         async with self.session_maker() as session:
 
-            result = await session.execute(text("""select
-                                                    language_id,
-                                                    language_code,
-                                                    language_name,
-                                                    native_name,
-                                                    script,
-                                                    variant,
-                                                    is_standard_language,
-                                                    is_user_selectable,
-                                                    is_translation_supported,
-                                                    status,
-                                                    created_at,
-                                                    updated_at
-                                                from
-                                                    language_configurations;
-                                                """))
+            result = await session.execute(text("select 1"))
             # print(type(result)) If you print then it return the class of and if try to return the output then call the function of the class 
             # fetch all for all query
-            return result.fetchone()
+            return result.scalar_one()
 
     async def close(self):
 

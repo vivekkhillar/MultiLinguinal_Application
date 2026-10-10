@@ -15,7 +15,7 @@ class HealthCheck:
             return {"status" : "ok", "message" : "Services are up and running"}
 
         except Exception as e:
-            print(e)
-            raise RuntimeError("Services are not up")
+
+            raise RuntimeError(f"Services are not up {e}")
 
 health_check = HealthCheck()
