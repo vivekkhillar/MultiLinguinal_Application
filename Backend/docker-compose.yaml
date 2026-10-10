@@ -8,9 +8,9 @@ services:
     container_name: chat_application_DB # Container name for the PostgreSQL service
     environment:
       # Database credentials and configuration
-      POSTGRES_USER: chat_app
-      POSTGRES_PASSWORD: Abc@123
-      POSTGRES_DB: chat_app_db
+      POSTGRES_USER: ${POSTGRES_USER:-chat_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-chat_app_db}
 
     ports:
       # Port mapping: host_port:container_port
@@ -42,9 +42,9 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --save 300 100 --requirepass Abc@123
+    command: redis-server --save 300 100 --requirepass ${REDIS_PASSWORD}
     healthcheck:
-      test: [ "CMD", "redis-cli", "-a", "Abc@123", "ping" ]
+      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
