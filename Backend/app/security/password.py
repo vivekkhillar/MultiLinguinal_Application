@@ -6,7 +6,7 @@ class PasswordHashing:
 
     def __init__(self):
 
-        self.password_hasher = PasswordHash((Argon2Hasher,()))
+        self.password_hasher = PasswordHash((Argon2Hasher(),))
     
     def hash_password(self,password: str) -> str:
 
