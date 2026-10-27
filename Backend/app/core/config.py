@@ -16,3 +16,7 @@ class config(BaseSettings):
     redis_timeout : int
     redis_password : str
     db_url:str
+    JWT_SECRET_KEY:str
+    JWT_ALGORITHM:str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int
+    SESSION_TOKEN_EXPIRE_DAYS: int

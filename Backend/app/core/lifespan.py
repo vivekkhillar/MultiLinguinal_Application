@@ -13,10 +13,10 @@ class LifeSpan:
     async def lifespanhandler(self, app: FastAPI):
         try:
             await self.redis_manager.connect()
-            print("Redis start")
+            # print("Redis start")
      
             await self.database_manager.connect()
-            print("Database start")
+            # print("Database start")
         
             yield
 
@@ -24,14 +24,14 @@ class LifeSpan:
 
             try: 
                 await self.redis_manager.close()
-                print("Redis close")
+                # print("Redis close")
 
             except Exception as e:
                 print(f"Error While closing the Redis {e}")
             
             try:
                 await self.database_manager.close()
-                print("Database close")
+                # print("Database close")
             except Exception as e:
                 print(f"Error While closing the Database {e}")
 
