@@ -1,9 +1,7 @@
 # pytest Backend/app/tests/security/test_password.py -v
 import sys
-import asyncio
 from pathlib import Path
 import pytest
-from httpx import AsyncClient, ASGITransport
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from security.password import PasswordHashing
 
