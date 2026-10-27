@@ -3782,3 +3782,312 @@ These remain deferred to Phase 2 if required.
 **Status:** The initial Redis architecture is **FROZEN**.
 
 Future modifications to core Redis usage patterns, key structures, or infrastructure responsibilities must be documented here and implemented deliberately.
+
+---
+
+# 8. Authentication & Authorization — Implementation Plan
+
+This section translates the authentication and authorization architecture defined earlier in this document into an ordered implementation checklist. The implementation must follow the existing FastAPI, Pydantic Settings, asynchronous SQLAlchemy, PostgreSQL, and project-testing conventions.
+
+## 8.1 — Password Hashing
+
+**Objective:** Ensure user passwords are never stored in plain text and can be verified safely during login.
+
+**Implementation:**
+- Use `pwdlib` with Argon2 for password hashing.
+- Keep password hashing independent of FastAPI routes and database access.
+- Expose clear operations for hashing a password and verifying a submitted password against a stored hash.
+- Never implement a custom password-hashing algorithm.
+- Never log passwords, hashes, or submitted credentials.
+- Handle invalid stored hashes safely without concealing unrelated programming errors where practical.
+
+**Project files:**
+- `Backend/app/security/password.py`
+- `Backend/app/tests/security/test_password.py`
+
+**Acceptance checklist:**
+- [x] Password hashing module created.
+- [x] Test confirms a hash is non-empty and differs from the original password.
+- [x] Test confirms the correct password verifies successfully.
+- [x] Test confirms an incorrect password is rejected.
+- [x] Test confirms repeated hashing of the same password produces different hashes and both hashes verify.
+- [x] Developer-reported local result: 4 tests passed, 0 failed.
+- [ ] Add a malformed/unsupported stored-hash test and verify its behavior.
+- [ ] Confirm the test suite remains green after later authentication changes.
+
+**Status:** Core implementation and the four listed tests are complete; malformed-hash behavior remains to be tested.
+
+## 8.2 — Authentication Configuration
+
+**Objective:** Centralize authentication settings and load secrets from environment configuration rather than hardcoding them.
+
+**Implementation:**
+- Extend the existing `Backend/app/core/config.py` configuration class; do not create a second settings system.
+- Keep the current Pydantic Settings and `.env` loading pattern.
+- Add a configurable JWT signing secret, JWT algorithm, access-token lifetime, and session/refresh-token lifetime.
+- Initial Phase 1 defaults for design and local development:
+  - Access-token lifetime: 15 minutes.
+  - Session/refresh-token lifetime: 7 days.
+  - JWT algorithm: HS256.
+- Keep the JWT signing secret separate from the Redis password and database credentials.
+- Generate a high-entropy secret for local configuration. Do not paste secrets into chat, commit them to Git, or place real values in documentation.
+- Document variable names and safe placeholders in an example environment file only if the repository uses such a file.
+- Ensure settings validation fails clearly when required authentication configuration is absent or invalid.
+- Do not log secret values.
+
+**Expected settings (names may follow the repository's existing naming convention):**
+- `JWT_SECRET_KEY`
+- `JWT_ALGORITHM`
+- `ACCESS_TOKEN_EXPIRE_MINUTES`
+- `SESSION_TOKEN_EXPIRE_DAYS`
+
+**Project files:**
+- `Backend/app/core/config.py`
+- Local, ignored `Backend/.env`
+- An example environment file, if maintained by the project, containing placeholders only.
+
+**Acceptance checklist:**
+- [ ] Settings are declared in the existing configuration class.
+- [ ] Local environment variables are configured without exposing their values.
+- [ ] A missing or invalid required setting is handled predictably.
+- [ ] No secret is committed to the repository.
+- [ ] Configuration behavior is tested.
+
+**Status:** Pending. This is the next implementation task.
+
+## 8.3 — Access-Token Creation and Verification
+
+**Objective:** Issue short-lived, signed access tokens and validate them consistently on protected API requests.
+
+**Implementation:**
+- Use the installed `PyJWT` package.
+- Sign tokens using the configured algorithm and secret.
+- Include a stable user identifier in the subject claim (`sub`), plus issued-at (`iat`) and expiration (`exp`) claims. Add issuer or audience claims only when the application configures and validates them consistently.
+- Use timezone-aware UTC timestamps.
+- Restrict decoding to the configured algorithm; never trust an algorithm supplied by an incoming token.
+- Reject expired, malformed, incorrectly signed, or otherwise invalid tokens.
+- Do not put passwords, password hashes, refresh/session tokens, or unnecessary personal information in JWT claims.
+- Keep token utility code separate from route handlers and database business logic.
+- Return clear authentication failures to the API layer without leaking secrets or token-validation internals to clients.
+
+**Expected module:** A focused token utility under `Backend/app/security/`, named consistently with the final project structure.
+
+**Acceptance checklist:**
+- [ ] Valid access token can be created and decoded.
+- [ ] Subject claim identifies the intended user.
+- [ ] Expired token is rejected.
+- [ ] Invalid signature and malformed token are rejected.
+- [ ] Unsupported algorithm is rejected.
+- [ ] Tests cover valid and invalid token cases.
+
+## 8.4 — Session / Refresh-Token Generation and Persistence
+
+**Objective:** Support revocable long-lived sessions without storing a usable raw session token in PostgreSQL.
+
+**Existing database integration:**
+Reuse the existing `user_sessions` table and the asynchronous database session manager. The schema already includes `session_id`, `user_id`, `token_hash`, `created_at`, `last_activity_at`, `expires_at`, `revoked_at`, and `session_status`.
+
+**Implementation:**
+- Generate a cryptographically secure random session/refresh token using Python's secure randomness facilities.
+- Return the raw token only to the client over HTTPS in deployed environments; store only a cryptographic hash of the token in `user_sessions.token_hash`.
+- Use a constant-time comparison when comparing token hashes where applicable, or query by the hash computed from the submitted token.
+- Store the user ID, token hash, creation time, last-activity time, expiry time, and `ACTIVE` status.
+- Validate that a session exists, is active, has not been revoked, and has not expired before accepting a refresh operation.
+- Rotate refresh/session tokens when refreshing a session; revoke or invalidate the previous token as part of the same transaction.
+- Never use a session token as a JWT signing secret.
+- Keep session creation and revocation in database transactions.
+- Preserve the existing foreign-key and check-constraint behavior. Do not alter the schema unless implementation demonstrates a genuine need; any required change must be a migration.
+
+**Acceptance checklist:**
+- [ ] Session token is generated securely.
+- [ ] Only a token hash is persisted.
+- [ ] Expiry and active/revoked status are enforced.
+- [ ] Reuse of a rotated or revoked token is rejected.
+- [ ] Session creation and rotation are covered by tests.
+
+## 8.5 — User Registration
+
+**Objective:** Create a valid user account with a securely hashed password.
+
+**Implementation:**
+- Define request and response schemas using the project's existing Pydantic conventions.
+- Validate required fields, username and email formats, and password policy.
+- Normalize identifiers consistently before uniqueness checks (for example, email casing) and enforce the same policy in application logic and database constraints where appropriate.
+- Hash the password with the Step 8.1 module before persistence.
+- Never accept a client-provided `user_id`, password hash, account status, or administrative fields.
+- Respect the existing `users` schema, including the required `preferred_language_id` foreign key. Registration must use a valid supported language ID selected by the user or a documented, valid default from seed data; do not invent an ID.
+- Create accounts with the database's default `ACTIVE` status. Do not permit a client to self-select an internal account status.
+- Handle duplicate username/email conflicts without returning database internals. Choose and document whether the public API uses a generic conflict response or field-specific validation.
+- Use the existing asynchronous `DBConnectionManager.get_session()` flow; do not open a second database connection system.
+- Keep database operations in a service layer and HTTP concerns in API routers.
+- Return a safe response that never includes `password_hash`.
+
+**Acceptance checklist:**
+- [ ] Valid registration creates one user.
+- [ ] Password hash is stored instead of the plain-text password.
+- [ ] Duplicate username and email are handled.
+- [ ] Invalid input and unsupported language ID are rejected.
+- [ ] Response excludes the password and hash.
+- [ ] Database errors are handled safely and transaction behavior is tested.
+
+## 8.6 — Login and Account-Status Enforcement
+
+**Objective:** Authenticate a user and issue access/session tokens only when credentials and account status permit access.
+
+**Implementation:**
+- Locate the account by the normalized login identifier.
+- Verify the submitted password using the password-hashing module.
+- Use a generic authentication failure response for an unknown user or incorrect password to reduce account enumeration.
+- Check `account_status` before creating a session or issuing tokens. Only `ACTIVE` accounts may use normal authenticated features.
+- Do not treat a valid password as sufficient when the account is deactivated.
+- Update `last_login_at` only after successful authentication, using a timezone-aware timestamp.
+- Create the session record and issue tokens only after the authentication checks pass.
+- Ensure failed login attempts do not create active sessions.
+- Apply rate limiting to login attempts in a later security substep, using the existing Redis design where appropriate and without making Redis the source of truth for accounts.
+
+**Acceptance checklist:**
+- [ ] Correct credentials for an active user succeed.
+- [ ] Incorrect password and unknown user fail safely.
+- [ ] Deactivated account cannot log in normally.
+- [ ] Successful login updates `last_login_at`.
+- [ ] Failed login creates no session.
+- [ ] Success and failure cases are tested.
+
+## 8.7 — Refresh, Logout, and Session Revocation
+
+**Objective:** Allow a user to renew a session safely and invalidate sessions when logging out.
+
+**Implementation:**
+- Validate the submitted session/refresh token against its stored hash and current database status.
+- Check token expiry and session status on every refresh.
+- Rotate the session token on successful refresh and reject replay of the old token.
+- Logout must revoke the current session by setting `session_status = 'REVOKED'` and `revoked_at` consistently with the database constraints.
+- Provide a separate all-sessions-revocation operation if required by the product's account-security flow.
+- Make repeated logout requests safe and predictable.
+- Access JWTs remain valid until their short expiry unless the request also checks session state or another revocation mechanism is introduced. Document this trade-off and enforce session checks for operations that require immediate revocation.
+- Update `last_activity_at` only according to the agreed activity policy; do not extend session lifetime indefinitely without a defined rule.
+
+**Acceptance checklist:**
+- [ ] Valid refresh token rotates successfully.
+- [ ] Expired, revoked, malformed, and replayed refresh tokens are rejected.
+- [ ] Logout revokes the correct session.
+- [ ] Revoked session cannot be refreshed.
+- [ ] Session revocation tests pass.
+- [ ] The behavior of already-issued access tokens after logout is documented and tested according to the chosen policy.
+
+## 8.8 — Authentication Dependency and Authorization
+
+**Objective:** Make it easy for API routes to identify the current user and enforce permissions on the server.
+
+**Implementation:**
+- Add a FastAPI dependency that extracts the access token from the Authorization bearer header, validates it, and resolves the authenticated user.
+- Use the existing database session dependency/pattern; do not create duplicate database infrastructure.
+- Confirm that the user still exists and is allowed to access the application. Enforce account status for protected operations.
+- Return `401 Unauthorized` for missing or invalid authentication and `403 Forbidden` when an authenticated user lacks permission.
+- Keep authorization checks on the server. Frontend visibility alone is not a security boundary.
+- For room, message, attachment, and future agent/tool endpoints, verify the user's permission for the specific resource rather than trusting user IDs supplied by the client.
+- Keep authentication (identity) distinct from authorization (permission).
+
+**Acceptance checklist:**
+- [ ] Protected route rejects missing credentials.
+- [ ] Protected route rejects invalid and expired access tokens.
+- [ ] Valid active user can access an allowed route.
+- [ ] Deactivated or deleted user is blocked according to policy.
+- [ ] Authorization checks prevent access to another user's restricted resources.
+- [ ] Unit and API-level dependency tests are added.
+
+## 8.9 — Password and Credential Safety
+
+**Objective:** Establish baseline protections for credential handling in Phase 1.
+
+**Implementation:**
+- Require passwords to be transmitted only over HTTPS in deployed environments.
+- Never log credentials, raw access tokens, raw refresh/session tokens, signing keys, or password hashes.
+- Keep secrets in local environment configuration or a suitable secret manager; never commit real secret values.
+- Avoid returning internal exception messages, SQL statements, or token-validation details to clients.
+- Use generic login errors and rate-limit sensitive authentication endpoints.
+- Set a documented password length policy. Do not silently trim or modify a password; define any normalization behavior explicitly.
+- Consider a maximum accepted password length to avoid excessive hashing work, while allowing long passphrases.
+- Do not invent password-reset or multi-factor flows in this step unless added explicitly to Phase 1 scope.
+
+**Acceptance checklist:**
+- [ ] No credential values appear in logs or API responses.
+- [ ] Authentication endpoints have a defined rate-limit policy.
+- [ ] Password length and validation policy is documented.
+- [ ] Secrets are excluded from Git.
+- [ ] Error responses do not expose internals.
+
+## 8.10 — Authentication API Endpoints
+
+**Objective:** Expose a small, consistent authentication API while keeping business logic outside route handlers.
+
+**Initial endpoint responsibilities (final paths should follow the existing router conventions):**
+- **Register:** validate input and create an account.
+- **Login:** verify credentials and return the access token plus the session/refresh token according to the chosen client transport.
+- **Refresh:** validate and rotate the session/refresh token and issue a new access token.
+- **Logout:** revoke the current session.
+- **Current user:** return safe information for the authenticated user.
+
+**Implementation rules:**
+- Use Pydantic request and response schemas.
+- Keep route handlers thin; delegate work to a service.
+- Use consistent HTTP status codes and error response formats.
+- Never expose password hashes or stored token hashes.
+- If session/refresh tokens are placed in cookies, configure Secure, HttpOnly, and an appropriate SameSite policy in deployed environments, and address CSRF for cookie-authenticated state-changing requests. If returned in response bodies instead, the client must handle storage securely and must not put tokens in URLs.
+- Do not implement endpoints before their underlying token/session behavior is testable.
+
+**Acceptance checklist:**
+- [ ] Endpoint paths and response schemas are documented.
+- [ ] Registration and login use the service layer.
+- [ ] Refresh and logout enforce session state.
+- [ ] Current-user endpoint returns only safe fields.
+- [ ] API tests cover success and error responses.
+
+## 8.11 — Testing and Validation
+
+**Objective:** Validate authentication behavior at unit, service, database, and API levels.
+
+**Required test groups:**
+- Password hashing and verification.
+- Token creation, signature validation, expiry, and malformed tokens.
+- Registration validation, duplicate accounts, and language foreign-key validation.
+- Login success, incorrect password, unknown account, and deactivated account.
+- Session persistence, expiry, rotation, replay rejection, and revocation.
+- Protected route behavior for missing, invalid, expired, and valid credentials.
+- Authorization for restricted resources.
+- Rate-limit behavior for sensitive endpoints.
+- Safe API responses and absence of credential leakage.
+
+**Test rules:**
+- Use isolated test data and a test database or a clearly isolated transaction strategy for database tests.
+- Never run destructive tests against production data.
+- Do not mark a test as passed unless it has actually been executed and its result recorded.
+- Keep unit tests for pure security utilities independent from FastAPI and the database where practical.
+
+**Acceptance checklist:**
+- [ ] Unit tests pass.
+- [ ] Service/database tests pass.
+- [ ] API tests pass.
+- [ ] Failure cases are covered as well as success cases.
+- [ ] Test output and any known limitations are recorded in the Phase 1 progress document.
+
+## 8.12 — Step 8 Completion Review
+
+Authentication & Authorization can be marked complete for Phase 1 only when the required implementation and tests have been completed.
+
+**Final review checklist:**
+- [ ] Password hashing uses Argon2 and is tested.
+- [ ] Authentication configuration is centralized and secrets are not committed.
+- [ ] Access tokens are signed, short-lived, and validated correctly.
+- [ ] Session/refresh tokens are random, stored as hashes, expiring, and revocable.
+- [ ] Registration and login enforce input validation and account status.
+- [ ] Logout and refresh follow the documented session lifecycle.
+- [ ] Protected routes enforce authentication and authorization on the server.
+- [ ] Sensitive endpoints have a documented rate-limit policy.
+- [ ] Relevant automated tests pass.
+- [ ] Existing PostgreSQL schema is reused or any necessary migration is documented.
+- [ ] Progress status and implementation references are updated in the project roadmap.
+
+**Current status:** Step 8.1 password hashing is implemented and the four core local tests have been reported passing. Step 8.2 authentication configuration is the next task. All later substeps remain pending until implemented and validated.
+
+---
