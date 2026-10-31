@@ -27,14 +27,14 @@ class LifeSpan:
                 logger.info("Redis Close")
 
             except Exception as e:
-                logger.info(f"Error While closing the Redis {e}")
+                logger.info(f"Error While closing the Redis")
             
             try:
                 await self.database_manager.close()
                 logger.info(f"Database close")
             except Exception as e:
 
-                logger.info(f"Error While closing the Database {e}")
+                logger.info(f"Error While closing the Database")
 
 lifespan_instance = LifeSpan()
 lifespan= lifespan_instance.lifespanhandler

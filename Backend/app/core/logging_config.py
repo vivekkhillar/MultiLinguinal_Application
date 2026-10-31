@@ -1,4 +1,5 @@
 from .config import config
+from datetime import datetime
 import os
 import logging
 from .base_dir import BaseDir
@@ -15,11 +16,13 @@ class Logger:
         self.environment = config().ENVIRONMENT
         self.logger_path = config().LOGS_PATH
         self.log_dir = os.path.join(self.BaseDirectory,self.logger_path)
-        self.log_path = os.path.join(self.log_dir,"app.log")
+        today_folder = datetime.now().strftime("%Y-%m-%d")
+        self.log_path = os.path.join(self.log_dir, today_folder, "application.log")
         self.log_format = "%(process)-5d | %(asctime)s | %(levelname)-2s | %(filename)-8s:%(lineno)-2s | %(funcName)-8s | %(name)-20s | %(message)s"
 
     def _create_logger_file(self):
-        os.makedirs(f'{self.BaseDirectory}/{self.logger_path}',exist_ok=True)
+        folder = os.path.dirname(self.log_path)
+        os.makedirs(folder, exist_ok=True)
         
     def _build_formatter(self):
         return logging.Formatter(self.log_format)
