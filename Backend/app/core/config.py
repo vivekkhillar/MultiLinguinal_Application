@@ -19,3 +19,7 @@ class config(BaseSettings):
     JWT_ALGORITHM:str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     SESSION_TOKEN_EXPIRE_DAYS: int = 7
+    LOGS_PATH:str
+    ENVIRONMENT: str
+    LOGGER_NAME: str
+    LOGGER_LEVEL: str
