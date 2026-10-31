@@ -8,3 +8,5 @@
 25056 | 2026-10-31 23:41:59,631 | INFO | lifespan.py:19 | lifespanhandler | MultiLinguinalCHAT_APP | Database Start
 25056 | 2026-10-31 23:42:11,337 | INFO | lifespan.py:27 | lifespanhandler | MultiLinguinalCHAT_APP | Redis Close
 25056 | 2026-10-31 23:42:11,341 | INFO | lifespan.py:34 | lifespanhandler | MultiLinguinalCHAT_APP | Database close
+29880 | 2026-10-31 23:42:16,620 | INFO | lifespan.py:17 | lifespanhandler | MultiLinguinalCHAT_APP | Redis Start
+29880 | 2026-10-31 23:42:16,777 | INFO | lifespan.py:19 | lifespanhandler | MultiLinguinalCHAT_APP | Database Start
