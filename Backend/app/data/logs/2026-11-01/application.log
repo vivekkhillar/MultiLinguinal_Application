@@ -4,3 +4,15 @@
 17048 | 2026-11-01 00:45:06,524 | INFO | lifespan.py:34 | lifespanhandler | MultiLinguinalCHAT_APP | Database close
 27064 | 2026-11-01 00:45:10,118 | INFO | lifespan.py:17 | lifespanhandler | MultiLinguinalCHAT_APP | Redis Start
 27064 | 2026-11-01 00:45:10,220 | INFO | lifespan.py:19 | lifespanhandler | MultiLinguinalCHAT_APP | Database Start
+27064 | 2026-11-01 00:48:12,870 | INFO | lifespan.py:27 | lifespanhandler | MultiLinguinalCHAT_APP | Redis Close
+27064 | 2026-11-01 00:48:12,871 | INFO | lifespan.py:34 | lifespanhandler | MultiLinguinalCHAT_APP | Database close
+31076 | 2026-11-01 00:48:16,366 | INFO | lifespan.py:17 | lifespanhandler | MultiLinguinalCHAT_APP | Redis Start
+31076 | 2026-11-01 00:48:16,633 | INFO | lifespan.py:19 | lifespanhandler | MultiLinguinalCHAT_APP | Database Start
+31076 | 2026-11-01 00:50:26,229 | INFO | lifespan.py:27 | lifespanhandler | MultiLinguinalCHAT_APP | Redis Close
+31076 | 2026-11-01 00:50:26,231 | INFO | lifespan.py:34 | lifespanhandler | MultiLinguinalCHAT_APP | Database close
+26828 | 2026-11-01 00:50:30,089 | INFO | lifespan.py:18 | lifespanhandler | MultiLinguinalCHAT_APP | Redis Start
+26828 | 2026-11-01 00:50:30,270 | INFO | lifespan.py:20 | lifespanhandler | MultiLinguinalCHAT_APP | Database Start
+26828 | 2026-11-01 11:33:39,601 | INFO | lifespan.py:28 | lifespanhandler | MultiLinguinalCHAT_APP | Redis Close
+26828 | 2026-11-01 11:33:39,616 | INFO | lifespan.py:35 | lifespanhandler | MultiLinguinalCHAT_APP | Database close
+32196 | 2026-11-01 11:33:43,821 | INFO | lifespan.py:18 | lifespanhandler | MultiLinguinalCHAT_APP | Redis Start
+32196 | 2026-11-01 11:33:43,989 | INFO | lifespan.py:20 | lifespanhandler | MultiLinguinalCHAT_APP | Database Start

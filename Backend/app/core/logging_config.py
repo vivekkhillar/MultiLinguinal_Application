@@ -11,10 +11,11 @@ class Logger:
     def __init__(self):
 
         self.BaseDirectory = BaseDir().get_base_directory()
-        self.loggerName = config().LOGGER_NAME
-        self.loggerLevel = config().LOGGER_LEVEL
-        self.environment = config().ENVIRONMENT
-        self.logger_path = config().LOGS_PATH
+        self.config = config()
+        self.loggerName = self.config.LOGGER_NAME
+        self.loggerLevel = self.config.LOGGER_LEVEL
+        self.environment = self.config.ENVIRONMENT
+        self.logger_path = self.config.LOGS_PATH
         self.log_dir = os.path.join(self.BaseDirectory,self.logger_path)
         today_folder = datetime.now().strftime("%Y-%m-%d")
         self.log_path = os.path.join(self.log_dir, today_folder, "application.log")

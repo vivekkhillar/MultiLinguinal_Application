@@ -9,6 +9,7 @@ class LifeSpan:
     def __init__(self):
         self.redis_manager = RedisConnectionManager()
         self.database_manager = DBConnectionManager()
+
     
     @asynccontextmanager
     async def lifespanhandler(self, app: FastAPI):
