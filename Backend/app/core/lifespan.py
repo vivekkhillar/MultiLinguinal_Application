@@ -1,10 +1,9 @@
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
 from infrastructure.redis.connection import RedisConnectionManager
 from infrastructure.database.connection import DBConnectionManager
-from fastapi import FastAPI
-from contextlib import asynccontextmanager
-from .logging_config import init_logging,_get_logger
+from .logging_config import init_logging, _get_logger
 
-logger = _get_logger()
 
 class LifeSpan:
 
@@ -12,17 +11,22 @@ class LifeSpan:
         self.redis_manager = RedisConnectionManager()
         self.database_manager = DBConnectionManager()
 
-    
     @asynccontextmanager
     async def lifespanhandler(self, app: FastAPI):
+        # 1. Initialize logging infrastructure first
         init_logging()
+        # 2. Acquire fully configured logger instance
+        logger = _get_logger()
+
         logger.info("Application startup initiated")
+
         try:
             await self.redis_manager.connect()
             logger.info("Redis connected successfully")
+
             await self.database_manager.connect()
             logger.info("Database connected successfully")
-        
+
             yield
 
         except Exception:
@@ -30,22 +34,22 @@ class LifeSpan:
             raise
 
         finally:
-            
             logger.info("Application shutdown initiated")
-            
-            try: 
-                await self.redis_manager.close()
-                logger.info("Redis Close")
 
+            try:
+                await self.redis_manager.close()
+                logger.info("Redis connection closed")
             except Exception:
-                logger.exception("Error While closing the Redis")
-            
+                logger.exception("Error while closing Redis")
+
             try:
                 await self.database_manager.close()
-                logger.info("Database close")
+                logger.info("Database connection closed")
             except Exception:
+                logger.exception("Error while closing Database")
 
-                logger.exception("Error While closing the Database")
+            logger.info("Application shutdown complete")
+
 
 lifespan_instance = LifeSpan()
-lifespan= lifespan_instance.lifespanhandler
+lifespan = lifespan_instance.lifespanhandler
