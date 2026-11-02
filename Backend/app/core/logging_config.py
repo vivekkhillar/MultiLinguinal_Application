@@ -66,9 +66,9 @@ class Logger:
         self.log_dir = os.path.join(self.BaseDirectory, self.logger_path)
 
         self.log_format = (
-            f"%(process)-5d | %(asctime)s | %(levelname)-2s | "
+            f"%(process)-5d | %(asctime)s | %(levelname)-2s | [{self.environment}] | "
             f"%(filename)-8s:%(lineno)-2s | %(funcName)-8s | "
-            f"%(name)-20s | [{self.environment}] | %(message)s"
+            f"%(name)-20s | %(message)s"
         )
 
     def _build_formatter(self) -> logging.Formatter:
