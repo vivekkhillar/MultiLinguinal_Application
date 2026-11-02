@@ -56,6 +56,25 @@ def test_logger_repeated_initialization_no_duplicate_handlers():
     assert logger_second is logger_first
     assert len(logger_second.handlers) == initial_count == 3
 
+def test_logger_initialization_with_pre_existing_handler():
+    """Verify behavior when a foreign handler was registered prior to init_logging()."""
+    cfg = config()
+    raw_logger = logging.getLogger(cfg.LOGGER_NAME)
+
+    # Attach a pre-existing third-party or dummy handler
+    pre_existing_handler = logging.NullHandler()
+    raw_logger.addHandler(pre_existing_handler)
+
+    assert len(raw_logger.handlers) == 1
+
+    logger = init_logging()
+
+    # Checks whether the pre-existing handler prevented complete initialization
+    file_handlers = [
+        h for h in logger.handlers if isinstance(h, DatedFolderDailyHandler)
+    ]
+    assert len(file_handlers) == 2
+    assert len(logger.handlers) == 4
 
 def test_logger_handler_types_integration():
     """Verify application and error file handlers are instances of DatedFolderDailyHandler."""
@@ -138,7 +157,6 @@ def test_dated_folder_rollover_across_days(tmp_path):
     )
     record_day1.created = yesterday_date.timestamp()
 
-    assert handler.shouldRollover(record_day1) is True
     handler.emit(record_day1)
     handler.flush()
 

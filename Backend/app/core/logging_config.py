@@ -102,7 +102,8 @@ class Logger:
     def _setup_Logger(self) -> logging.Logger:
         logger = logging.getLogger(self.loggerName)
 
-        if not logger.handlers:
+        has_app_handlers = any(isinstance(h, DatedFolderDailyHandler) for h in logger.handlers)
+        if not has_app_handlers:
             formatter = self._build_formatter()
             logger.addHandler(self._add_console_handler(formatter))
             logger.addHandler(self._add_app_file_handler(formatter))
@@ -121,7 +122,8 @@ def init_logging() -> logging.Logger:
     global _app_logger_instance
     logger = logging.getLogger(config().LOGGER_NAME)
 
-    if not logger.handlers or _app_logger_instance is None:
+    has_app_handlers = any(isinstance(h, DatedFolderDailyHandler) for h in logger.handlers)
+    if not has_app_handlers or _app_logger_instance is None:
         _app_logger_instance = Logger()._setup_Logger()
     else:
         _app_logger_instance = logger
