@@ -3,8 +3,8 @@ import logging
 from datetime import datetime
 from logging.handlers import BaseRotatingHandler
 from typing import Optional
-from .config import config
-from .base_dir import BaseDir
+from core.config import config
+from core.base_dir import BaseDir
 
 
 class DatedFolderDailyHandler(BaseRotatingHandler):
@@ -42,7 +42,6 @@ class DatedFolderDailyHandler(BaseRotatingHandler):
             self.stream.close()
             self.stream = None
 
-        # Prefer explicitly supplied date or record date over clock fallback
         new_date = target_date or self._target_date_str or datetime.now().strftime("%Y-%m-%d")
         self.current_date_str = new_date
         self._target_date_str = None
@@ -120,8 +119,13 @@ _app_logger_instance: Optional[logging.Logger] = None
 
 def init_logging() -> logging.Logger:
     global _app_logger_instance
-    if _app_logger_instance is None or not _app_logger_instance.handlers:
+    logger = logging.getLogger(config().LOGGER_NAME)
+
+    if not logger.handlers or _app_logger_instance is None:
         _app_logger_instance = Logger()._setup_Logger()
+    else:
+        _app_logger_instance = logger
+
     return _app_logger_instance
 
 

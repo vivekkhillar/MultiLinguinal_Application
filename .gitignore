@@ -4,4 +4,8 @@ __pycache__/
 *.py[cod]
 ~$*.xlsx
 .pytest_cache
-.backend/data/logs
+# Application Logs
+backend/app/data/logs/
+Backend/app/data/logs/
+data/logs/
+*.log
