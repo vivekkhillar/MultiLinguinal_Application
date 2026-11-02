@@ -40,3 +40,9 @@
 24960 | 2026-11-01 12:02:02,293 | INFO | lifespan.py:35 | lifespanhandler | MultiLinguinalCHAT_APP | Database close
 31320 | 2026-11-01 12:02:05,935 | INFO | lifespan.py:18 | lifespanhandler | MultiLinguinalCHAT_APP | Redis Start
 31320 | 2026-11-01 12:02:06,008 | INFO | lifespan.py:20 | lifespanhandler | MultiLinguinalCHAT_APP | Database Start
+31320 | 2026-11-01 12:05:29,831 | INFO | lifespan.py:28 | lifespanhandler | MultiLinguinalCHAT_APP | Redis Close
+31320 | 2026-11-01 12:05:29,833 | INFO | lifespan.py:35 | lifespanhandler | MultiLinguinalCHAT_APP | Database close
+5864  | 2026-11-01 12:05:33,929 | INFO | lifespan.py:18 | lifespanhandler | MultiLinguinalCHAT_APP | Redis Start
+5864  | 2026-11-01 12:05:34,092 | INFO | lifespan.py:20 | lifespanhandler | MultiLinguinalCHAT_APP | Database Start
+5864  | 2026-11-01 12:21:01,128 | INFO | lifespan.py:28 | lifespanhandler | MultiLinguinalCHAT_APP | Redis Close
+5864  | 2026-11-01 12:21:01,129 | INFO | lifespan.py:35 | lifespanhandler | MultiLinguinalCHAT_APP | Database close

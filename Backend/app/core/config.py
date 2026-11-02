@@ -1,7 +1,16 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from enum import Enum
 from .base_dir import BaseDir
 
 env_path = BaseDir().get_base_directory() / ".env"
+
+
+class LogLevelEnum(str, Enum):
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
 
 class config(BaseSettings):
     model_config = SettingsConfigDict(
@@ -22,4 +31,4 @@ class config(BaseSettings):
     LOGS_PATH:str
     ENVIRONMENT: str
     LOGGER_NAME: str
-    LOGGER_LEVEL: str
+    LOGGER_LEVEL: LogLevelEnum = LogLevelEnum.INFO
