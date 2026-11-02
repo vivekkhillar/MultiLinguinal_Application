@@ -1,10 +1,54 @@
 import os
 import logging
+from logging.handlers import BaseRotatingHandler
 from typing import Optional
 from .config import config
 from datetime import datetime
 from .base_dir import BaseDir
 
+# create Dated Folder Daily Handler cause if server is still up and running then the lifespan will continue in the server
+# which will not able to identify and create another date folder for the application and log which will continue in a single folder
+# where logging continously appending and make the file size 10 gb or more which we won't able to open file directly 
+class DatedFolderDailyHandler(BaseRotatingHandler):
+
+    def __init__(self, root_log_dir: str, file_name: str, encoding: str = "utf-8"):
+
+        self.root_log_dir = root_log_dir
+        self.file_name = file_name
+        self.current_date_str = datetime.now().strftime("%Y-%m-%d")
+
+        initial_file_path = self._resolve_path(self.current_date_str)
+        self._ensure_dir(initial_file_path)
+
+        # delay=False ensures file is created/opened immediately
+        super().__init__(initial_file_path, mode="a", encoding=encoding, delay=False)
+
+    def _resolve_path(self, date_str: str) -> str:
+        return os.path.join(self.root_log_dir, date_str, self.file_name)
+
+    def _ensure_dir(self, file_path: str) -> None:
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    def shouldRollover(self, record: logging.LogRecord) -> bool:
+        # Check the timestamp of the incoming message against the active handler's date
+        record_date_str = datetime.fromtimestamp(record.created).strftime("%Y-%m-%d")
+        return record_date_str != self.current_date_str
+
+    def doRollover(self) -> None:
+        # 1. Safely flush and close the previous day's open file
+        if self.stream:
+            self.stream.flush()
+            self.stream.close()
+            self.stream = None
+
+        # 2. Update to current day's path and create directory
+        self.current_date_str = datetime.now().strftime("%Y-%m-%d")
+        self.baseFilename = self._resolve_path(self.current_date_str)
+        self._ensure_dir(self.baseFilename)
+
+        # 3. Open the fresh day's file stream
+        if not self.delay:
+            self.stream = self._open()
 
 class Logger:
 
