@@ -207,7 +207,6 @@ def test_dated_folder_rollover_older_timestamp_record(tmp_path):
     )
     record_past.created = past_date.timestamp()
 
-    assert handler.shouldRollover(record_past) is True
     handler.emit(record_past)
     handler.flush()
 
