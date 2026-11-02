@@ -55,7 +55,7 @@ class Logger:
     def _add_error_file_handler(self,formatter: logging.Formatter) -> logging.FileHandler:
         self._ensure_dir(self.error_log_path)
         handler = logging.FileHandler(self.error_log_path,mode= "a",encoding="utf-8")
-        handler.setLevel(self.loggerLevel)
+        handler.setLevel(logging.ERROR)
         handler.setFormatter(formatter)
         return handler
 
