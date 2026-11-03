@@ -1,21 +1,20 @@
 import jwt
+from typing import Optional
 from datetime import datetime,timezone,timedelta
 from core.config import config
 from core.logging_config import _get_logger
-
+from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
 logger = _get_logger()
 
 class JWT:
 
-    def __init__(self):
-
+    def __init__(self) -> None:
         cfg = config()
         self.algorithm : str = cfg.JWT_ALGORITHM
         self.secretKey : str = cfg.JWT_SECRET_KEY
-        self.expireTime = int(cfg.ACCESS_TOKEN_EXPIRE_MINUTES)
-        self.sessionExpireTime = cfg.SESSION_TOKEN_EXPIRE_DAYS
+        self.expire_minutes = int(cfg.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    def _create_access_token(self, expires_delta : int, sub: str) -> str: 
+    def create_access_token(self,sub: str, expires_delta: Optional[timedelta] = None) -> str: 
 
         now = datetime.now(timezone.utc)
 
@@ -40,16 +39,16 @@ class JWT:
         except Exception as e:
             logger.error("Failed to generate access token: %s",str(e))
     
-    def _decode_access_token(self,encoded_string: str) -> dict:
+    def _decode_access_token(self,encoded_string: str) -> Dict[str, Any]:
         
         try:
 
             payload = jwt.decode(
-                token, self.secretKey, algorithms=[self.algorithm], options= {"require" : ["exp", "iat", "sub"]},
+                encoded_string, self.secretKey, algorithms=[self.algorithm], options= {"require" : ["exp", "iat", "sub"]},
             )
 
             # Ensure this is an access token, not another token type
-            if payload.get('type') != "acess":
+            if payload.get('type') != "access":
                 logger.warning("Token verification failed: Invalid token type")
                 raise InvalidTokenError("Invalid token type")
 
