@@ -1,5 +1,5 @@
 import jwt
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime,timezone,timedelta
 from core.config import config
 from core.logging_config import _get_logger
@@ -36,10 +36,11 @@ class JWT:
             logger.info("Token generated successfully")
             return token
 
-        except Exception as e:
-            logger.error("Failed to generate access token: %s",str(e))
+        except Exception:
+            logger.exception("Failed to generate access token")
+            raise
     
-    def _decode_access_token(self,encoded_string: str) -> Dict[str, Any]:
+    def decode_access_token(self,encoded_string: str) -> Dict[str, Any]:
         
         try:
 

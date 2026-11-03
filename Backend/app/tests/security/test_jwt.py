@@ -18,10 +18,10 @@ def test_create_access_token_success(jwt_handler: JWT):
     assert isinstance(token, str)
     assert len(token.split(".")) == 3
 
-def test_decode_access_token_success(jwt_handler: JWT):
+def testdecode_access_token_success(jwt_handler: JWT):
 
     token = jwt_handler.create_access_token(sub = "user-123")
-    payload = jwt_handler._decode_access_token(token)
+    payload = jwt_handler.decode_access_token(token)
 
     assert payload['sub'] == "user-123"
     assert payload["type"] == "access"
@@ -34,7 +34,7 @@ def test_decode_expired_token(jwt_handler: JWT):
     token = jwt_handler.create_access_token(sub="user-123" , expires_delta=expired_delta)
 
     with pytest.raises(ExpiredSignatureError):
-        jwt_handler._decode_access_token(token) 
+        jwt_handler.decode_access_token(token) 
 
 def test_decode_invalid_signature(jwt_handler: JWT):
 
@@ -42,7 +42,7 @@ def test_decode_invalid_signature(jwt_handler: JWT):
     tampered_token = token[:-5] + 'abcde'
 
     with pytest.raises(InvalidTokenError):
-        jwt_handler._decode_access_token(tampered_token)
+        jwt_handler.decode_access_token(tampered_token)
 
 
 def test_decode_invalid_token_type(jwt_handler: JWT):
@@ -51,7 +51,7 @@ def test_decode_invalid_token_type(jwt_handler: JWT):
     raw_token = jwt.encode(payload,jwt_handler.secretKey,algorithm= jwt_handler.algorithm)
 
     with pytest.raises(InvalidTokenError):
-        jwt_handler._decode_access_token(raw_token)
+        jwt_handler.decode_access_token(raw_token)
 
 def test_decode_missing_required_claims(jwt_handler: JWT):
 
@@ -59,4 +59,4 @@ def test_decode_missing_required_claims(jwt_handler: JWT):
     raw_token = jwt.encode(payload,jwt_handler.secretKey,algorithm= jwt_handler.algorithm)
 
     with pytest.raises(InvalidTokenError):
-        jwt_handler._decode_access_token(raw_token)
+        jwt_handler.decode_access_token(raw_token)
