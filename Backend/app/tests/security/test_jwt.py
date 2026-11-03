@@ -46,8 +46,8 @@ def test_decode_invalid_signature(jwt_handler: JWT):
 
 
 def test_decode_invalid_token_type(jwt_handler: JWT):
-
-    payload = {"sub" : "user-123", "type" : "refresh"}
+    now = datetime.now()
+    payload = {"sub" : "user-123", "iat": now, "exp" : now + timedelta(minutes=15), "type" : "refresh"}
     raw_token = jwt.encode(payload,jwt_handler.secretKey,algorithm= jwt_handler.algorithm)
 
     with pytest.raises(InvalidTokenError):

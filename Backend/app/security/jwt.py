@@ -18,7 +18,7 @@ class JWT:
 
         now = datetime.now(timezone.utc)
 
-        if expires_delta:
+        if expires_delta is not None:
             exp = now + expires_delta
         else: 
             exp = now + timedelta(minutes=self.expire_minutes)
