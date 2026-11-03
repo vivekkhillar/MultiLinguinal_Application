@@ -18,7 +18,7 @@ def test_create_access_token_success(jwt_handler: JWT):
     assert isinstance(token, str)
     assert len(token.split(".")) == 3
 
-def testdecode_access_token_success(jwt_handler: JWT):
+def test_decode_access_token_success(jwt_handler: JWT):
 
     token = jwt_handler.create_access_token(sub = "user-123")
     payload = jwt_handler.decode_access_token(token)

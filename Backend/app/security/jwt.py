@@ -45,7 +45,7 @@ class JWT:
         try:
 
             payload = jwt.decode(
-                encoded_string, self.secretKey, algorithms=[self.algorithm], options= {"require" : ["exp", "iat", "sub"]},
+                encoded_string, self.secretKey, algorithms=[self.algorithm], options= {"require" : ["exp", "iat", "sub", "type"]},
             )
 
             # Ensure this is an access token, not another token type
