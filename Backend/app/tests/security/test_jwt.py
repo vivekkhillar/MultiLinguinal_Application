@@ -2,7 +2,7 @@ import pytest
 import sys
 import jwt
 from pathlib import Path
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -46,7 +46,7 @@ def test_decode_invalid_signature(jwt_handler: JWT):
 
 
 def test_decode_invalid_token_type(jwt_handler: JWT):
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     payload = {"sub" : "user-123", "iat": now, "exp" : now + timedelta(minutes=15), "type" : "refresh"}
     raw_token = jwt.encode(payload,jwt_handler.secretKey,algorithm= jwt_handler.algorithm)
 
