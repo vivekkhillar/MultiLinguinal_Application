@@ -14,10 +14,14 @@ def session_token_handler():
 def test_generate_token(session_token_handler: SessionToken):
 
     token = session_token_handler.generate_token()
-    assert token is not None
     assert isinstance(token, str)
-    assert len(session_token_handler.generate_token()) > 0 
+    assert len(token) >= 43
 
+#Token uniqueness
+def test_generate_token_uniqueness(session_token_handler: SessionToken):
+    token1 = session_token_handler.generate_token()
+    token2 = session_token_handler.generate_token()
+    assert token1 != token2
 
 # Test the hashed token
 def test_hash_token_returns_64_char_hex(session_token_handler: SessionToken):
@@ -54,3 +58,8 @@ def test_different_tokens_produce_different_hashes(session_token_handler: Sessio
 def test_hash_token_rejects_invalid_input(session_token_handler: SessionToken, invalid_token):
     with pytest.raises(SessionTokenError):
         session_token_handler.hash_token(invalid_token)
+
+@pytest.mark.parametrize("invalid_bytes", [0, 16, 31, -1, "32", True, None])
+def test_init_invalid_token_bytes(invalid_bytes):
+    with pytest.raises(ValueError):
+        SessionToken(token_bytes=invalid_bytes)

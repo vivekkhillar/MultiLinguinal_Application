@@ -10,8 +10,11 @@ class SessionToken:
     TOKEN_BYTES: int = 32
 
     def __init__(self,token_bytes: int = TOKEN_BYTES):
+
+        if not isinstance(token_bytes, int) or isinstance(token_bytes, bool) or token_bytes < 32:
+            raise ValueError("Token bytes must be an integer greater than or equal to 32.")
         
-        self.Token_Bytes: int = token_bytes
+        self.token_bytes: int = token_bytes
 
     def generate_token(self) -> str:
         """
@@ -19,7 +22,7 @@ class SessionToken:
         Returns:
             str: URL-safe string containing at least 32 bytes of randomness.
         """
-        token = secrets.token_urlsafe(self.Token_Bytes)
+        token = secrets.token_urlsafe(self.token_bytes)
         return token
     
     def hash_token(self, token: str) -> str:
@@ -41,10 +44,3 @@ class SessionToken:
             raise SessionTokenError("Token must be a non-empty string.")
         encoded_string = token.encode("utf-8")
         return hashlib.sha256(encoded_string).hexdigest()
-
-# if __name__ == "__main__":
-    
-#     St = SessionToken()
-#     token = St.generate_token()
-#     print("Generate token: " , token)
-#     print( "Hashed Token: ", St.hash_token(token))
