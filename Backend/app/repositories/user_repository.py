@@ -1,7 +1,6 @@
 from uuid import UUID
 from typing import Any, Dict, Optional
 from sqlalchemy import text
-from core.lifespan import lifespan_instance
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -22,12 +21,12 @@ class UserRepository:
                         WHERE email = :email
                     """)
 
-        async with self.session as session:
+        
             
-            result = await session.execute(query, {"email": email})
-            row = result.mappings().one_or_none()
+        result = await self.session.execute(query, {"email": email})
+        row = result.mappings().one_or_none()
 
-            return dict(row) if row else None
+        return dict(row) if row else None
     
 
     async def get_by_username(self,username: str)-> Optional[Dict[str,Any]]:
@@ -39,13 +38,11 @@ class UserRepository:
                         FROM chat_app.users 
                         WHERE username = :username
                     """)
-
-        async with self.session as session:
             
-            result = await session.execute(query, {"username": username})
-            row = result.mappings().one_or_none()
+        result = await self.session.execute(query, {"username": username})
+        row = result.mappings().one_or_none()
 
-            return dict(row) if row else None
+        return dict(row) if row else None
     
     async def get_by_id(self,user_id: str | UUID)-> Optional[Dict[str,Any]]:
         
@@ -57,9 +54,9 @@ class UserRepository:
                         WHERE user_id = :user_id
                     """)
 
-        async with self.session as session:
+        
             
-            result = await session.execute(query, {"user_id": user_id})
-            row = result.mappings().one_or_none()
+        result = await self.session.execute(query, {"user_id": user_id})
+        row = result.mappings().one_or_none()
 
-            return dict(row) if row else None
+        return dict(row) if row else None
