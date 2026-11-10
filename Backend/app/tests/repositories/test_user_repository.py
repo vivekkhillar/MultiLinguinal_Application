@@ -6,15 +6,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from core.lifespan import lifespan_instance
 from repositories.user_repository import UserRepository
 
-@pytest.fixture
-def user_repo() -> UserRepository:
-    return UserRepository()
-
 @pytest_asyncio.fixture(autouse=True)
 async def setup_database():
     await lifespan_instance.database_manager.connect()
     yield
     await lifespan_instance.database_manager.close()
+
+@pytest_asyncio.fixture
+async def user_repo() -> UserRepository:
+    async with lifespan_instance.database_manager.get_session() as session:
+        yield UserRepository(session=session) 
 
 @pytest.mark.asyncio
 async def test_get_by_email_found(user_repo):
@@ -54,7 +55,7 @@ async def test_get_by_userid_found(user_repo):
 @pytest.mark.asyncio
 async def test_get_by_userid_notfound(user_repo):
 
-    res = await user_repo.get_by_id('4b4c8756-334c-4904-9222-3974d2cb09fc')
+    res = await user_repo.get_by_id(UUID("4b4c8756-334c-4904-9222-3974d2cb09fc"))
     assert res is None
 
 
