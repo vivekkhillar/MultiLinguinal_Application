@@ -23,7 +23,7 @@ class UserRepository:
         async with self.db.get_session() as session:
             
             result = await session.execute(query, {"email": email})
-            row = result.mappings().first()
+            row = result.mappings().one_or_none()
 
             return dict(row) if row else None
     
@@ -41,7 +41,7 @@ class UserRepository:
         async with self.db.get_session() as session:
             
             result = await session.execute(query, {"username": username})
-            row = result.mappings().first()
+            row = result.mappings().one_or_none()
 
             return dict(row) if row else None
     
@@ -58,6 +58,6 @@ class UserRepository:
         async with self.db.get_session() as session:
             
             result = await session.execute(query, {"user_id": user_id})
-            row = result.mappings().first()
+            row = result.mappings().one_or_none()
 
             return dict(row) if row else None
