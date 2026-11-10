@@ -1,3 +1,4 @@
+from uuid import UUID
 from typing import Any, Dict, Optional
 from sqlalchemy import text
 from core.lifespan import lifespan_instance
@@ -9,7 +10,7 @@ class UserRepository:
         self.db = lifespan_instance.database_manager
 
 
-    async def get_by_emailid(self,email: str)-> Optional[Dict[str,Any]]:
+    async def get_by_email(self,email: str)-> Optional[Dict[str,Any]]:
         
         # during writing the sql query need to remember the SELECT,  UPDATE everything need to be write with all caps and during sending any 
         # value while executing the query we need to send with the = : symbol
