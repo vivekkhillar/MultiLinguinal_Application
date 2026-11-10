@@ -9,3 +9,4 @@ backend/app/data/logs/
 Backend/app/data/logs/
 data/logs/
 *.log
+*.vscode
