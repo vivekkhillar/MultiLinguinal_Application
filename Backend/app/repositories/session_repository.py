@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 class SessionRepository:
 
-    def __init__(self,session= AsyncSession) -> None:
+    def __init__(self,session: AsyncSession) -> None:
 
         self.session = session
     
@@ -35,16 +35,20 @@ class SessionRepository:
 
     async def create(self, **kwargs):
 
+        required_fields = ["user_id", "token_hash", "expires_at"]
+
+        for field in required_fields:
+            if field not in kwargs or kwargs[field] is None:
+                raise ValueError(f"{field} is required")
+
         params: Dict[str, Any] = {
-            "user_id": None,
-            "token_hash": None,
             "device_info": None,
             "user_agent": None,
             "ip_address": None,
-            "expires_at": None,
-            "session_status": "ACTIVE",  # Default status if not provided
+            "session_status": "ACTIVE",
+            **kwargs
         }
-        params.update(kwargs)
+        
         
         query = text(
                     """
@@ -59,7 +63,7 @@ class SessionRepository:
         return dict(row) if row else None
     
 
-    async def update_activity(self, **kwargs) -> Optional[dict[str,Any]]:
+    async def update_activity(self, session_id: UUID) -> Optional[dict[str,Any]]:
         
         from datetime import datetime,timezone
 
@@ -69,10 +73,9 @@ class SessionRepository:
                         """)
 
         params = {
-            "session_id" : None,
+            "session_id" : session_id,
             "last_activity" : datetime.now(timezone.utc)
         }
-        params.update(kwargs)
 
         res = await self.session.execute(query, params)
         row = res.mappings().one_or_none()
