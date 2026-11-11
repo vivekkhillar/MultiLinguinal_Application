@@ -21,13 +21,13 @@ class SessionRepository:
         row = res.mappings().one_or_none()
         return dict(row) if row else None
     
-    async def get_by_id(self, sessionid: str |  UUID) -> Optional[dict[str,Any]]:
+    async def get_by_id(self, session_id: str |  UUID) -> Optional[dict[str,Any]]:
 
         query = text("""
                         SELECT * FROM 
                         chat_app.user_sessions where session_id = :sessionid
                     """)
-        res = await self.session.execute(query, {"sessionid": sessionid})
+        res = await self.session.execute(query, {"sessionid": session_id})
         row = res.mappings().one_or_none()
         return dict(row) if row else None
     
