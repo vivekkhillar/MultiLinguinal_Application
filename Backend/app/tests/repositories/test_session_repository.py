@@ -23,12 +23,11 @@ async def session_repo() -> SessionRepository:
 async def test_get_by_token_hash(session_repo):
     res = await session_repo.get_by_token_hash("test-session-token-001")
     assert res is not None
-    assert res['token_hash'] == "test-session-token-001"
-
+    assert res["token_hash"] == "test-session-token-001"
 
 @pytest.mark.asyncio
 async def test_get_by_token_hash_notfound(session_repo):
-    res = await session_repo.get_by_token_hash("test-session-token-002")
+    res = await session_repo.get_by_token_hash("non-existent-token-hash")
     assert res is None
 
 @pytest.mark.asyncio
@@ -46,36 +45,31 @@ async def test_get_by_id_notfound(session_repo):
 @pytest.mark.asyncio
 async def test_create_session(session_repo):
     
-    session_id = str(uuid.uuid4())
     token_hash = f"test-token-{uuid.uuid4()}"
-    tz = timezone(timedelta(hours=5, minutes=30))
-    now = datetime.now(tz)
+    now = datetime.now(timezone.utc)
     expires = now + timedelta(hours=1)
+
+
     res = await session_repo.create(
-                session_id= session_id,
-                user_id="3b4c8756-334c-4904-9222-3974d2cb09fc",
-                token_hash= token_hash,
-                device_info= "Test Device",
-                user_agent= "Test Browser",
-                ip_address= "127.0.0.1",
-                created_at = now,
-                last_activity_at= now,
-                expires_at = expires,
-                revoked_at = None, 
-                session_status = "ACTIVE")
+
+                    user_id="3b4c8756-334c-4904-9222-3974d2cb09fc",
+                    token_hash= token_hash,
+                    device_info= "Test Device",
+                    user_agent= "Test Browser",
+                    ip_address= "127.0.0.1",
+                    expires_at = expires,
+
+                )
 
     assert res is not None
-    assert str(res['session_id']) == session_id
+    assert str(res['token_hash']) == token_hash
+    assert res["session_id"] is not None
 
 
 @pytest.mark.asyncio
 async def test_update_last_activity(session_repo):
-    session_id = "a3192c8e-c7a0-4198-b417-87c1665c39ae"
-    tz = timezone(timedelta(hours=5, minutes=30))
-    now = datetime.now(tz)
-    last_activity_at = now + timedelta(hours=1)
+    session_id = "3fbad398-4d13-4346-aeca-58fa997d3c08"
     res = await session_repo.update_activity(
-                session_id= session_id,
-                last_activity = last_activity_at)
+                session_id= session_id)
     assert res is not None
     assert str(res['session_id']) == session_id

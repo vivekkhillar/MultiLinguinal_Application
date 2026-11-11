@@ -6,18 +6,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 class SessionRepository:
 
-    def __init__(self,session: AsyncSession) -> None:
+    def __init__(self,session= AsyncSession) -> None:
 
         self.session = session
     
 
-    async def get_by_token_hash(self,hashtoken : str) -> Optional[dict[str,Any]]:
+    async def get_by_token_hash(self,token_hash : str) -> Optional[dict[str,Any]]:
 
         query = text("""
                         SELECT * FROM
-                        chat_app.user_sessions where token_hash = :hashtoken 
+                        chat_app.user_sessions where token_hash = :token_hash 
                     """)
-        res = await self.session.execute(query,{"hashtoken": hashtoken})
+        res = await self.session.execute(query,{"token_hash": token_hash})
         row = res.mappings().one_or_none()
         return dict(row) if row else None
     
@@ -35,26 +35,43 @@ class SessionRepository:
 
     async def create(self, **kwargs):
 
-        query = text("""
-                        INSERT INTO chat_app.user_sessions (session_id,user_id,token_hash,device_info,user_agent,ip_address,created_at,last_activity_at,expires_at,revoked_at,session_status)
-                        VALUES (:session_id,:user_id,:token_hash,:device_info,:user_agent,:ip_address,:created_at,:last_activity_at,:expires_at,:revoked_at,:session_status) 
+        params: Dict[str, Any] = {
+            "user_id": None,
+            "token_hash": None,
+            "device_info": None,
+            "user_agent": None,
+            "ip_address": None,
+            "expires_at": None,
+            "session_status": "ACTIVE",  # Default status if not provided
+        }
+        params.update(kwargs)
+        
+        query = text(
+                    """
+                        INSERT INTO chat_app.user_sessions (user_id,token_hash,device_info,user_agent,ip_address,expires_at,session_status)
+                        VALUES (:user_id,:token_hash,:device_info,:user_agent,:ip_address,:expires_at,:session_status) 
                         RETURNING *
                     """)
         
-        params = {}
-        params.update(kwargs)
+        
         res = await self.session.execute(query, params)
         row = res.mappings().one_or_none()
         return dict(row) if row else None
     
 
     async def update_activity(self, **kwargs) -> Optional[dict[str,Any]]:
+        
+        from datetime import datetime,timezone
 
         query =  text("""
                         UPDATE chat_app.user_sessions set last_activity_at = :last_activity where session_id = :session_id
                         RETURNING * 
                         """)
-        params = {}
+
+        params = {
+            "session_id" : None,
+            "last_activity" : datetime.now(timezone.utc)
+        }
         params.update(kwargs)
 
         res = await self.session.execute(query, params)
