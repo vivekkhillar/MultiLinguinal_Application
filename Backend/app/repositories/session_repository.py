@@ -79,7 +79,7 @@ class SessionRepository:
 
         return dict(row) if row else None
     
-    async def revoke(self, session_id:UUID) -> Optional[dict[str,Any]]:
+    async def revoke(self, session_id:UUID | str) -> Optional[dict[str,Any]]:
 
         query = text("""UPDATE chat_app.user_sessions set revoked_at = CURRENT_TIMESTAMP , session_status = 'REVOKED' 
                         where session_id = :session_id
@@ -90,4 +90,5 @@ class SessionRepository:
         row = res.mappings().one_or_none()
 
         return dict(row) if row else None
+
 
