@@ -130,3 +130,30 @@ async def test_revoke_session_not_found(session_repo):
     session_id = uuid.uuid4()
     res = await session_repo.revoke(session_id= session_id)
     assert res is None
+
+@pytest.mark.asyncio
+async def test_revoke_already_revoked_session(session_repo):
+
+    token_hash = f"test-token-{uuid.uuid4()}"
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(hours=1)
+
+
+    res = await session_repo.create(
+
+            user_id="3b4c8756-334c-4904-9222-3974d2cb09fc",
+            token_hash= token_hash,
+            device_info= "Test Device",
+            user_agent= "Test Browser",
+            ip_address= "127.0.0.1",
+            expires_at = expires,
+
+        )
+
+    session_id = str(res['session_id'])
+    first_res = await session_repo.revoke(session_id= session_id)
+    assert first_res is not None
+    assert str(first_res['session_status']) == "REVOKED"
+
+    second_res = await session_repo.revoke(session_id= session_id)
+    assert second_res is None
