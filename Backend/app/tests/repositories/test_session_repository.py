@@ -68,7 +68,24 @@ async def test_create_session(session_repo):
 
 @pytest.mark.asyncio
 async def test_update_last_activity(session_repo):
-    session_id = "3fbad398-4d13-4346-aeca-58fa997d3c08"
+
+    token_hash = f"test-token-{uuid.uuid4()}"
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(hours=1)
+
+
+    res = await session_repo.create(
+
+            user_id="3b4c8756-334c-4904-9222-3974d2cb09fc",
+            token_hash= token_hash,
+            device_info= "Test Device",
+            user_agent= "Test Browser",
+            ip_address= "127.0.0.1",
+            expires_at = expires,
+
+        )
+
+    session_id = str(res['session_id'])
     res = await session_repo.update_activity(
                 session_id= session_id)
     assert res is not None

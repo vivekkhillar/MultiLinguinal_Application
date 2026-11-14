@@ -25,15 +25,16 @@ class SessionRepository:
 
         query = text("""
                         SELECT * FROM 
-                        chat_app.user_sessions where session_id = :sessionid
+                        chat_app.user_sessions where session_id = :session_id
                     """)
-        res = await self.session.execute(query, {"sessionid": session_id})
+        parsed_id = UUID(str(session_id)) if not isinstance(session_id,UUID) else session_id
+        res = await self.session.execute(query, {"session_id": parsed_id})
         row = res.mappings().one_or_none()
         return dict(row) if row else None
     
 
 
-    async def create(self, **kwargs):
+    async def create(self, **kwargs : Any) -> Optional[dict[str,Any]]:
 
         required_fields = ["user_id", "token_hash", "expires_at"]
 
@@ -42,11 +43,13 @@ class SessionRepository:
                 raise ValueError(f"{field} is required")
 
         params: Dict[str, Any] = {
-            "device_info": None,
-            "user_agent": None,
-            "ip_address": None,
+            "user_id": UUID(str(kwargs["user_id"])) if not isinstance(kwargs["user_id"], UUID) else kwargs["user_id"],
+            "token_hash": kwargs["token_hash"],
+            "expires_at": kwargs["expires_at"],
+            "device_info": kwargs.get("device_info"),
+            "user_agent": kwargs.get("user_agent"),
+            "ip_address": kwargs.get("ip_address"),
             "session_status": "ACTIVE",
-            **kwargs
         }
         
         
@@ -65,19 +68,13 @@ class SessionRepository:
 
     async def update_activity(self, session_id: UUID) -> Optional[dict[str,Any]]:
         
-        from datetime import datetime,timezone
-
         query =  text("""
-                        UPDATE chat_app.user_sessions set last_activity_at = :last_activity where session_id = :session_id
+                        UPDATE chat_app.user_sessions set last_activity_at = CURRENT_TIMESTAMP where session_id = :session_id
                         RETURNING * 
                         """)
 
-        params = {
-            "session_id" : session_id,
-            "last_activity" : datetime.now(timezone.utc)
-        }
-
-        res = await self.session.execute(query, params)
+        parsed_id = UUID(str(session_id)) if not isinstance(session_id, UUID) else session_id
+        res = await self.session.execute(query, {"session_id": parsed_id})
         row = res.mappings().one_or_none()
 
         return dict(row) if row else None

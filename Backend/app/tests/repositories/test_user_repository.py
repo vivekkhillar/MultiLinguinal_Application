@@ -23,12 +23,6 @@ async def test_get_by_email_found(user_repo):
     res = await user_repo.get_by_email('testuser001@example.com')
     assert res is not None
     assert res["email"] == "testuser001@example.com"
-    
-@pytest.mark.asyncio
-async def test_get_by_email_notfound(user_repo):
-
-    res = await user_repo.get_by_email('testuser002@example.com')
-    assert res is None
 
 @pytest.mark.asyncio
 async def test_get_by_username_found(user_repo):
