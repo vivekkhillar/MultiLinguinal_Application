@@ -2,6 +2,7 @@ import sys,uuid
 from pathlib import Path
 import pytest,pytest_asyncio
 from uuid import UUID
+from sqlalchemy import text
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from core.lifespan import lifespan_instance
 from repositories.session_repository import SessionRepository
@@ -237,8 +238,37 @@ async def test_update_token_session_revoked(session_repo):
     assert create_session is not None
     update_session = await session_repo.revoke(session_id = create_session['session_id'])
     update_token = await session_repo.update_token(session_id = create_session['session_id'],
-                                                    old_token_hash = "wrong-token-hash",
+                                                    old_token_hash = old_token_hash,
                                                     new_token_hash=f"new-hash-{uuid.uuid4()}")
     assert update_token is None
 
 
+
+
+@pytest.mark.asyncio
+async def test_update_token_expired_session(session_repo):
+    old_token_hash = f"old-hash-{uuid.uuid4()}"
+    expires = datetime.now(timezone.utc) + timedelta(days=7)
+    create_session = await session_repo.create(
+        user_id="3b4c8756-334c-4904-9222-3974d2cb09fc",
+        token_hash=old_token_hash,
+        device_info="Test Device",
+        user_agent="Test Browser",
+        ip_address="127.0.0.1",
+        expires_at=expires,
+    )
+
+    assert create_session is not None
+
+    await session_repo.session.execute(text("""
+        update chat_app.user_sessions set created_at = CURRENT_TIMESTAMP - INTERVAL '2 days',
+                expires_at = CURRENT_TIMESTAMP - INTERVAL '1 day'
+            WHERE session_id = :session_id"""), {"session_id": create_session["session_id"]})
+
+
+    update_token = await session_repo.update_token(session_id=create_session["session_id"],
+        old_token_hash=old_token_hash,
+        new_token_hash=f"new-hash-{uuid.uuid4()}",
+        )
+    
+    assert update_token is None
