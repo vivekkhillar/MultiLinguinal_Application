@@ -10,7 +10,7 @@ class SessionRepository:
 
         self.session = session
     
-
+    # check and retrived the session by the token
     async def get_by_token_hash(self,token_hash : str) -> Optional[dict[str,Any]]:
 
         query = text("""
@@ -21,6 +21,7 @@ class SessionRepository:
         row = res.mappings().one_or_none()
         return dict(row) if row else None
     
+    # check and return the session by session id
     async def get_by_id(self, session_id: str |  UUID) -> Optional[dict[str,Any]]:
 
         query = text("""
@@ -32,8 +33,7 @@ class SessionRepository:
         row = res.mappings().one_or_none()
         return dict(row) if row else None
     
-
-
+    # create an session for the user_id
     async def create(self, **kwargs : Any) -> Optional[dict[str,Any]]:
 
         required_fields = ["user_id", "token_hash", "expires_at"]
@@ -65,7 +65,7 @@ class SessionRepository:
         row = res.mappings().one_or_none()
         return dict(row) if row else None
     
-
+    # update the last activity 
     async def update_activity(self, session_id: UUID) -> Optional[dict[str,Any]]:
         
         query =  text("""
@@ -79,6 +79,7 @@ class SessionRepository:
 
         return dict(row) if row else None
     
+    # reovke the session permenanetly
     async def revoke(self, session_id:UUID | str) -> Optional[dict[str,Any]]:
 
         query = text("""UPDATE chat_app.user_sessions set revoked_at = CURRENT_TIMESTAMP , session_status = 'REVOKED' 
@@ -90,5 +91,43 @@ class SessionRepository:
         row = res.mappings().one_or_none()
 
         return dict(row) if row else None
+
+    # update the session token cause JWT token is 15 min and Session/refresh token expires on 7 days
+    async def update_token(self, **kwargs : Any) -> Optional[Dict[str,Any]]:
+
+        required_fields = ['session_id','old_token_hash','new_token_hash']
+
+        # Basic check if all the values are camming from the source
+        for fields in required_fields:
+            if fields not in kwargs or kwargs[fields] is None:
+                raise ValueError(f"{fields} is required")
+        
+        raw_session_id = kwargs["session_id"]
+        parsed_session_id = (
+            UUID(str(raw_session_id))
+            if not isinstance(raw_session_id, UUID)
+            else raw_session_id
+        )
+
+        params: Dict[str,Any] = {
+            "session_id" : parsed_session_id,
+            "old_token_hash" : kwargs['old_token_hash'],
+            "new_token_hash" : kwargs['new_token_hash']
+        }
+
+        query = text(
+            """
+                UPDATE chat_app.user_sessions SET token_hash = :new_token_hash,last_activity_at = CURRENT_TIMESTAMP
+                WHERE session_id = :session_id AND token_hash = :old_token_hash AND expires_at > CURRENT_TIMESTAMP AND session_status = 'ACTIVE'
+                RETURNING *                 
+            """
+        )
+
+        res = await self.session.execute(query,params)
+        row = res.mappings().one_or_none()
+        return dict(row) if row else None 
+
+            
+
 
 
