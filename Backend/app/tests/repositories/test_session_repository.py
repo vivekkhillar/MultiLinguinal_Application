@@ -6,11 +6,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from core.lifespan import lifespan_instance
 from repositories.session_repository import SessionRepository
 from datetime import datetime,timezone,timedelta
-from security.jwt import JWT
-
-@pytest.fixture
-def jwt_handler() -> JWT: 
-    return JWT()
 
 @pytest_asyncio.fixture(autouse=True)
 async def setup_database():
@@ -164,16 +159,17 @@ async def test_revoke_already_revoked_session(session_repo):
 
 
 @pytest.mark.asyncio
-async def test_update_token(session_repo,jwt_handler):
+async def test_update_token(session_repo):
     
-    token_hash = jwt_handler.create_access_token(sub='3b4c8756-334c-4904-9222-3974d2cb09fc')
+    old_token_hash = f"old-hash-{uuid.uuid4()}"
+    new_token_hash = f"new-hash-{uuid.uuid4()}"
     now = datetime.now(timezone.utc)
     expires = now + timedelta(days= 7)
 
     create_session = await session_repo.create(
 
             user_id="3b4c8756-334c-4904-9222-3974d2cb09fc",
-            token_hash= token_hash,
+            token_hash= old_token_hash,
             device_info= "Test Device",
             user_agent= "Test Browser",
             ip_address= "127.0.0.1",
@@ -185,12 +181,36 @@ async def test_update_token(session_repo,jwt_handler):
 
 
     session_id = create_session['session_id']
-    old_token = create_session['token_hash']
-    new_token = jwt_handler.create_access_token(sub='3b4c8756-334c-4904-9222-3974d2cb09fc')
-    update_token = await session_repo.update_token(session_id = session_id,old_token_hash = old_token, new_token_hash=new_token)
+    update_token = await session_repo.update_token(session_id = session_id,old_token_hash = old_token_hash, new_token_hash=new_token_hash)
 
     assert update_token is not None
-    assert update_token['token_hash'] == new_token
+    assert updated["session_id"] == created["session_id"]
+    assert updated["token_hash"] == new_token_hash
+    assert updated["last_activity_at"] is not None
 
 
+@pytest.mark.asyncio
+async def test_update_token_wrong_old_hash_fails(session_repo):
+
+    old_token_hash = f"old-hash-{uuid.uuid4()}"
+    expires = datetime.now(timezone.utc) + timedelta(days= 7)
+
+    create_session = await session_repo.create(
+
+            user_id="3b4c8756-334c-4904-9222-3974d2cb09fc",
+            token_hash= old_token_hash,
+            device_info= "Test Device",
+            user_agent= "Test Browser",
+            ip_address= "127.0.0.1",
+            expires_at = expires,
+            
+        )
+    
+    assert create_session is not None
+ 
+    update_token = await session_repo.update_token(session_id = create_session['session_id'],
+                                                    old_token_hash = "wrong-token-hash",
+                                                    new_token_hash=f"new-hash-{uuid.uuid4()}")
+
+    assert update_token is None
 
