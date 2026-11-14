@@ -78,3 +78,14 @@ class SessionRepository:
         row = res.mappings().one_or_none()
 
         return dict(row) if row else None
+    
+    async def revoke(self, session_id:UUID) -> Optional[dict[str,Any]]:
+
+        query = text("""UPDATE chat_app.user_sessions set revoked_at = CURRENT_TIMESTAMP , session_status = 'REVOKED' where session_id = :session_id
+                        RETURNING * """)
+        parsed_id = UUID(str(session_id)) if not isinstance(session_id, UUID) else session_id
+        res = await self.session.execute(query, {"session_id": parsed_id})
+        row = res.mappings().one_or_none()
+
+        return dict(row) if row else None
+
