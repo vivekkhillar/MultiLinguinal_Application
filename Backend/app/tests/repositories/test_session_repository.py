@@ -123,3 +123,10 @@ async def test_revoke_session(session_repo):
     assert res is not None
     assert str(res['session_id']) == session_id
     assert str(res['session_status']) == "REVOKED"
+
+@pytest.mark.asyncio
+async def test_revoke_session_not_found(session_repo):
+
+    session_id = uuid.uuid4()
+    res = await session_repo.revoke(session_id= session_id)
+    assert res is None
