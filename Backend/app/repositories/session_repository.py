@@ -66,7 +66,7 @@ class SessionRepository:
         return dict(row) if row else None
     
     # update the last activity 
-    async def update_activity(self, session_id: UUID) -> Optional[dict[str,Any]]:
+    async def update_activity(self, session_id: UUID | str) -> Optional[dict[str,Any]]:
         
         query =  text("""
                         UPDATE chat_app.user_sessions set last_activity_at = CURRENT_TIMESTAMP where session_id = :session_id
