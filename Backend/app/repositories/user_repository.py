@@ -2,7 +2,6 @@ from uuid import UUID
 from typing import Any, Dict, Optional
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError
 
 class UserRepository:
 
@@ -61,7 +60,7 @@ class UserRepository:
         return dict(row) if row else None
 
 
-    async def create(self, **kwargs) -> Optional[Dict[str,Any]] :
+    async def create(self, **kwargs) -> Dict[str, Any]:
 
         required_fields = ["username", "email", "password_hash", "first_name", "preferred_language_id"]
 

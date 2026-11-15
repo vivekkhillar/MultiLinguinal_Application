@@ -106,3 +106,58 @@ async def test_create_user_already_exist(user_repo):
 
     with pytest.raises(IntegrityError):
         await user_repo.create(**payload)
+
+
+@pytest.mark.asyncio
+async def test_create_duplicate_username_different_email(user_repo):
+
+    language_id = await user_repo.session.execute(text("""
+        SELECT language_id FROM chat_app.language_configurations LIMIT 1
+    """))
+    language_id = language_id.scalar_one()
+
+    unique_suffix = uuid.uuid4().hex[:8]
+
+    payload = dict(
+        username=f"vivek_{unique_suffix}",
+        email=f"vivek_{unique_suffix}@gmail.com",
+        password_hash="$argon2id$v=19$m=65536,t=3,p=4$dummyhashedpassword",
+        first_name="vivek",
+        last_name="khillar",
+        preferred_language_id=language_id,
+    )
+    create_user = await user_repo.create(**payload)
+    assert create_user is not None
+
+    with pytest.raises(IntegrityError):
+        
+        # if we write like this then the email id will auto replace
+        await user_repo.create(**{**payload, "email": f"other_{unique_suffix}@gmail.com"})
+
+
+
+@pytest.mark.asyncio
+async def test_create_duplicate_email_different_username(user_repo):
+
+    language_id = await user_repo.session.execute(text("""
+        SELECT language_id FROM chat_app.language_configurations LIMIT 1
+    """))
+    language_id = language_id.scalar_one()
+
+    unique_suffix = uuid.uuid4().hex[:8]
+
+    payload = dict(
+        username=f"vivek_{unique_suffix}",
+        email=f"vivek_{unique_suffix}@gmail.com",
+        password_hash="$argon2id$v=19$m=65536,t=3,p=4$dummyhashedpassword",
+        first_name="vivek",
+        last_name="khillar",
+        preferred_language_id=language_id,
+    )
+    create_user = await user_repo.create(**payload)
+    assert create_user is not None
+
+    with pytest.raises(IntegrityError):
+        
+        # if we write like this then the email id will auto replace
+        await user_repo.create(**{**payload, "username": f"other_{unique_suffix}"})
