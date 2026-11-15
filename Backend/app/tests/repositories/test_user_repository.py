@@ -74,6 +74,7 @@ async def test_create_user(user_repo):
 
     assert create_user is not None
     assert create_user['username'] == user_name
+    assert create_user['user_id'] is not None
 
 
 @pytest.mark.asyncio
