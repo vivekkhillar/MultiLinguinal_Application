@@ -74,7 +74,7 @@ class UserRepository:
             "email" : kwargs['email'],
             "password_hash" : kwargs['password_hash'],
             "first_name": kwargs['first_name'],
-            "last_name" : kwargs['last_name'],
+            "last_name" : kwargs.get('last_name'),
             "preferred_language_id" : kwargs['preferred_language_id']
         }
 
