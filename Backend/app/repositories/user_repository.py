@@ -2,12 +2,14 @@ from uuid import UUID
 from typing import Any, Dict, Optional
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-
+from security.password import PasswordHashing
+from sqlalchemy.exc import IntegrityError
 
 class UserRepository:
 
     def __init__(self,session : AsyncSession) -> None:
         self.session = session
+        self.password_hash = PasswordHashing()
 
 
     async def get_by_email(self,email: str)-> Optional[Dict[str,Any]]:
@@ -60,3 +62,40 @@ class UserRepository:
         row = result.mappings().one_or_none()
 
         return dict(row) if row else None
+
+
+    async def create(self, **kwargs) -> Optional[Dict[str,Any]] :
+
+        required_fields = ["username", "email", "raw_password", "first_name", "last_name", "preferred_language_id"]
+
+        for fields in required_fields:
+            if fields not in kwargs or kwargs[fields] is None:
+                raise ValueError(f"{fields} are required")
+        
+        password = kwargs['raw_password']
+        hash_password = self.password_hash.hash_password(password)
+        print(hash_password)
+        params : Dict[str,Any] = {
+            "username" : kwargs['username'],
+            "email" : kwargs['email'],
+            "password_hash" : hash_password,
+            "first_name": kwargs['first_name'],
+            "last_name" : kwargs['last_name'],
+            "preferred_language_id" : kwargs['preferred_language_id']
+        }
+
+        query = text("""
+                        INSERT into chat_app.users(username, email, password_hash, first_name, last_name, preferred_language_id)
+                        VALUES(:username,:email,:password_hash,:first_name,:last_name,:preferred_language_id)
+                        RETURNING * 
+                    """)
+        
+        try:
+            async with self.session.begin_nested():
+                res = await self.session.execute(query,params)
+                row = res.mappings().one()
+            return dict(row) if row else None
+        except IntegrityError:
+            return None
+        
+        
