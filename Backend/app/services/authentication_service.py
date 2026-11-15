@@ -33,7 +33,7 @@ class AuthenticationService:
         if await self.user_repo.get_by_username(kwargs['username']):
             raise ValueError("user name already exists")
 
-        hash_password = self.password_hashed(kwargs['password'])
+        hash_password = self.password_hashed.hash_password(kwargs['password'])
 
         payload = {
             "username" : kwargs['username'],
@@ -46,8 +46,7 @@ class AuthenticationService:
 
         try:
             create_user = await self.user_repo.create(**payload)
-            if create_user:
-                logger.info('user inserted successfully')
+
         except IntegrityError as exc:
 
             constraint_name = getattr(getattr(exc.orig, "diag", None),"constraint_name",None)
@@ -59,5 +58,9 @@ class AuthenticationService:
 
             elif constraint_name == "fk_users_preferred_language":
                 raise ValueError("Invalid preferred language ID") from exc
-
+            else:
+                logger.exception("Unexpected database integrity error")
+                raise
+            
+        logger.info("User registered successfully")
         return create_user
