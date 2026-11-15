@@ -1,8 +1,7 @@
 from security.password import PasswordHashing
 from repositories.user_repository import UserRepository
 from sqlalchemy.exc import IntegrityError
-from logging.config import _get_logger
-
+from core.logging_config import _get_logger
 
 
 logger = _get_logger()
@@ -61,6 +60,6 @@ class AuthenticationService:
             else:
                 logger.exception("Unexpected database integrity error")
                 raise
-            
+
         logger.info("User registered successfully")
         return create_user
