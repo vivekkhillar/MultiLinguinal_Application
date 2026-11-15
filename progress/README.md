@@ -41,7 +41,7 @@ At the end of each meaningful implementation/review:
 | 8.2 | Authentication configuration | Complete |
 | 8.3 | JWT utility | Complete — 6 tests reported passing |
 | 8.4 | Session-token utility | Complete — 18 tests reported passing |
-| 8.5.1 | UserRepository | Complete — user reported tests passing |
+| 8.5.1 | UserRepository | Complete — 10 tests passed (2026-11-15) |
 | 8.5.2 | SessionRepository | Complete — 14 tests reported passing |
 | 8.6 | AuthenticationService | Pending — next |
 | 8.7+ | Authentication API routes and integration | Pending |
@@ -230,7 +230,7 @@ Expected responsibility:
 
 Write focused service tests using the project's existing test patterns. Do not invent schema fields or duplicate existing utility functionality. Once registration is reviewed and tested, proceed to `login()`; do not start the API router prematurely.
 
-**Important:** Inspect the actual current User model/table and repository signatures before finalizing the service method or its tests. Examples in chat are illustrative until verified against the repository.
+**Important:** Inspect the actual current User model/table and repository signatures before finalizing the service method or its tests.
 
 ---
 
@@ -257,4 +257,5 @@ Use this checklist at each implementation milestone:
 - Established this file as the project-wide progress and conversation handoff checkpoint.
 - Recorded current Authentication & Authorization status and the agreed repository/service/API separation.
 - Recorded the fixed 7-day session expiry and 15-minute access JWT policy.
-- Set the next task to inspect existing dependencies and implement `AuthenticationService.register()`.
+- Reviewed the latest UserRepository and test file; all **10 tests passed**, including duplicate username/email and omitted last_name cases.
+- Marked Step 8.5.1 UserRepository complete and set the next task to inspect existing dependencies and implement `AuthenticationService.register()`.
