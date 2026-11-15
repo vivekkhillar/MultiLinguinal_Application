@@ -1,6 +1,8 @@
 import sys
-from pathlib import Path
 import pytest,pytest_asyncio
+import uuid
+from sqlalchemy.exc import IntegrityError
+from pathlib import Path
 from uuid import UUID
 from sqlalchemy import text
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -58,45 +60,49 @@ async def test_get_by_userid_notfound(user_repo):
 async def test_create_user(user_repo):
 
     language_id = await user_repo.session.execute(text("""
-            SELECT language_id FROM chat_app.language_configurations LIMIT 1
+        SELECT language_id FROM chat_app.language_configurations LIMIT 1
     """))
     language_id = language_id.scalar_one()
-    user_name = "vivek_khillar"
+
+    unique_suffix = uuid.uuid4().hex[:8]
+    user_name = f"vivek_{unique_suffix}"
+
 
     create_user = await user_repo.create(
-        username= user_name,
-        email =  "vivekkhillar@gmail.com",
-        raw_password = "vivek@12345",
-        first_name = "vivek",
-        last_name = "khillar",
-        preferred_language_id = language_id
+        username=user_name,
+        email=f"vivek_{unique_suffix}@gmail.com",
+        password_hash="$argon2id$v=19$m=65536,t=3,p=4$dummyhashedpassword",
+        first_name="vivek",
+        last_name="khillar",
+        preferred_language_id=language_id,
     )
 
     assert create_user is not None
-    assert create_user['username'] == user_name
-    assert create_user['user_id'] is not None
+    assert create_user["username"] == user_name
+    assert create_user["user_id"] is not None
+    assert "password_hash" not in create_user
 
 
 @pytest.mark.asyncio
 async def test_create_user_already_exist(user_repo):
 
     language_id = await user_repo.session.execute(text("""
-            SELECT language_id FROM chat_app.language_configurations LIMIT 1
+        SELECT language_id FROM chat_app.language_configurations LIMIT 1
     """))
     language_id = language_id.scalar_one()
-    user_name = "vivek_khillar"
+
+    unique_suffix = uuid.uuid4().hex[:8]
 
     payload = dict(
-        username= user_name,
-        email =  "vivekkhillar@gmail.com",
-        raw_password = "vivek@12345",
-        first_name = "vivek",
-        last_name = "khillar",
-        preferred_language_id = language_id
+        username=f"vivek_{unique_suffix}",
+        email=f"vivek_{unique_suffix}@gmail.com",
+        password_hash="$argon2id$v=19$m=65536,t=3,p=4$dummyhashedpassword",
+        first_name="vivek",
+        last_name="khillar",
+        preferred_language_id=language_id,
     )
     create_user = await user_repo.create(**payload)
-
     assert create_user is not None
 
-    second_same_user = await user_repo.create(**payload)
-    assert second_same_user is None
+    with pytest.raises(IntegrityError):
+        await user_repo.create(**payload)

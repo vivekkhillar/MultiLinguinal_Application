@@ -119,7 +119,7 @@ class SessionRepository:
             """
                 UPDATE chat_app.user_sessions SET token_hash = :new_token_hash,last_activity_at = CURRENT_TIMESTAMP
                 WHERE session_id = :session_id AND token_hash = :old_token_hash AND expires_at > CURRENT_TIMESTAMP AND session_status = 'ACTIVE'
-                RETURNING user_id, username, email, first_name, last_name, account_status                
+                RETURNING *                
             """
         )
 
