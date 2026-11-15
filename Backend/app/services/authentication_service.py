@@ -1,6 +1,11 @@
 from security.password import PasswordHashing
 from repositories.user_repository import UserRepository
 from sqlalchemy.exc import IntegrityError
+from logging.config import _get_logger
+
+
+
+logger = _get_logger()
 
 class AuthenticationService:
 
@@ -25,10 +30,10 @@ class AuthenticationService:
         if await self.user_repo.get_by_email(kwargs['email']):
             raise ValueError("Email ID already exists")
         
-        if await self.user_repo.get_by_username(kwargs['user_name']):
+        if await self.user_repo.get_by_username(kwargs['username']):
             raise ValueError("user name already exists")
 
-        hash_password = self.password_hashed(kwargs['password_hash'])
+        hash_password = self.password_hashed(kwargs['password'])
 
         payload = {
             "username" : kwargs['username'],
@@ -41,8 +46,18 @@ class AuthenticationService:
 
         try:
             create_user = await self.user_repo.create(**payload)
-
+            if create_user:
+                logger.info('user inserted successfully')
         except IntegrityError as exc:
-            raise ValueError("Unable to create Users into the DB") from exc
-        
+
+            constraint_name = getattr(getattr(exc.orig, "diag", None),"constraint_name",None)
+
+            if constraint_name == "users_email_key":
+                raise ValueError("Email ID already exists") from exc
+            elif constraint_name == "users_username_key":
+                raise ValueError("Username already exists") from exc
+
+            elif constraint_name == "fk_users_preferred_language":
+                raise ValueError("Invalid preferred language ID") from exc
+
         return create_user

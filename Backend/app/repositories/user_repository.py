@@ -86,5 +86,5 @@ class UserRepository:
         async with self.session.begin_nested():
             res = await self.session.execute(query, params)
             row = res.mappings().one()
-
+        
         return dict(row)
