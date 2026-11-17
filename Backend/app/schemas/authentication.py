@@ -16,11 +16,11 @@ class RegisterRequest(BaseModel):
 
 class RegisterResponse(BaseModel):
     
-    user_id : str
+    user_id : UUID
     username : str
     email : EmailStr
     first_name : str
-    last_name : str
+    last_name : Optional[str]
     account_status : str
 
 class LoginRequest(BaseModel):
@@ -29,8 +29,8 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     access_token : str
-    token_type : str
-    expires_in : str
+    token_type : str = "bearer"
+    expires_in : int
     user_id : UUID
     username : str
 
