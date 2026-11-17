@@ -1,5 +1,6 @@
-# Without the dependencies we need to create objectes everytime and for all the API is need to done the same 
-# So to avoid we need to create depencdencies so that it would be the common services we were passed to the api layer where multiple time object creation will avoid
+# Centralized dependency providers for database sessions,
+# repositories, security utilities, and application services.
+
 
 from typing import Annotated,AsyncGenerator
 from fastapi import Depends
@@ -11,13 +12,14 @@ from repositories.user_repository import UserRepository
 from security.password import PasswordHashing
 from services.authentication_service import AuthenticationService
 
-async def get_db_session() -> AsyncGenerator[AsyncSession,None]:
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 
     async with lifespan_instance.database_manager.get_session() as session:
         yield session 
 
 
 def get_user_repository(session : Annotated[AsyncSession,Depends(get_db_session)]) -> UserRepository:
+    
     return UserRepository(session)
 
 

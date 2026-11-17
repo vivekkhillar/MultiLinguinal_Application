@@ -20,7 +20,7 @@ class RegisterResponse(BaseModel):
     username : str
     email : EmailStr
     first_name : str
-    last_name : Optional[str]
+    last_name: Optional[str] = None
     account_status : str
 
 class LoginRequest(BaseModel):
@@ -37,7 +37,7 @@ class LoginResponse(BaseModel):
 
 class RefreshResponse(BaseModel):
     access_token: str
-    token_type: str
+    token_type: str = "bearer"
     expires_in : int
 
 class LogoutResponse(BaseModel):
