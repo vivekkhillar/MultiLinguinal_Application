@@ -2,9 +2,12 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr,Field
 from uuid import UUID
 
+# Cookie are manage by Response.set_cookie() and response.delete_cookie()
+
+
 class RegisterRequest(BaseModel):
 
-    user_name : str = Field(..., min_length=3, max_length=50)
+    username : str = Field(..., min_length=3, max_length=50)
     email : EmailStr
     password :  str = Field(..., min_length=8, max_length=128)
     first_name: str = Field(..., min_length=1, max_length=100)
@@ -20,8 +23,23 @@ class RegisterResponse(BaseModel):
     last_name : str
     account_status : str
 
-
-
 class LoginRequest(BaseModel):
-    user_name: str = Field(..., min_length=3, max_length=50)
-    pass_word: str = Field(..., min_length=8, max_length=128)
+    username: str = Field(..., min_length=3, max_length=50)
+    password: str = Field(..., min_length=8, max_length=128)
+
+class LoginResponse(BaseModel):
+    access_token : str
+    token_type : str
+    expires_in : str
+    user_id : UUID
+    username : str
+
+
+class RefreshResponse(BaseModel):
+    access_token: str
+    token_type: str
+    expires_in : int
+
+class LogoutResponse(BaseModel):
+    message: str
+
