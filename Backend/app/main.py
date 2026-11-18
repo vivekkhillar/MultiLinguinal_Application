@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from api.routers.health import router
+from api.routers.authentication import router
 from core.lifespan import lifespan
 import uvicorn
 
