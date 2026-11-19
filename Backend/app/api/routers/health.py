@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException,status
 from services.health_service import health_check
 
 
-router = APIRouter(prefix= "/health", tags= ["health"])
+router = APIRouter(prefix= "/health", tags= ["Health"])
 
 @router.get("",status_code=status.HTTP_200_OK)
 async def health():
