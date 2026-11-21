@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException,status,Depends
 from typing import Annotated
 from services.authentication_service import AuthenticationService
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError,OperationalError
 from schemas.authentication import RegisterRequest,RegisterResponse,LoginResponse,LoginRequest
 from api.dependencies import get_authentication_service
 from core.exception import (UsernameAlreadyExistsError,EmailAlreadyExistsError,InvalidPreferredLanguageError)
@@ -26,15 +26,8 @@ async def register_user(request: RegisterRequest , auth_service : Annotated[Auth
     
     except InvalidPreferredLanguageError as e:
         raise HTTPException(
-            status_code= status.HTTP_409_CONFLICT,
+            status_code= status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail = str(e),
-        ) from e
-
-    except RuntimeError as e:
-        payload = e.args[0] if e.args and isinstance(e.args[0], dict) else {"status": "unhealthy", "detail": str(e)}
-        raise HTTPException(
-            status_code= status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail= payload
         ) from e
     
     except SQLAlchemyError as e:
@@ -44,6 +37,13 @@ async def register_user(request: RegisterRequest , auth_service : Annotated[Auth
             detail="An internal error occurred while registering the user.",
         ) from e
 
+
+    except OperationalError as e:
+        logger.exception("Database operational error during registration")
+        raise HTTPException(
+              status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+              detail="Database service is temporarily unavailable.",
+          ) from e
     
 @router.post("/login", response_model = LoginResponse, status_code=status.HTTP_200_OK)
 async def login(request: LoginRequest , auth_service : Annotated[AuthenticationService,Depends(get_authentication_service)]):

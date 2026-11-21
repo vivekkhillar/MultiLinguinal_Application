@@ -56,7 +56,7 @@ class AuthenticationService:
                 or getattr(orig, "constraint_name", None)
                 or getattr(getattr(orig, "diag", None), "constraint_name", None)
             )
-            logger.error(f"The Api throws error : {cause}")
+            logger.error(f"Database integrity error during registration")
             if constraint_name == "users_email_key":
                 raise EmailAlreadyExistsError("Email ID already exists") from exc
 
