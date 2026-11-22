@@ -1,9 +1,18 @@
 from security.password import PasswordHashing
 from repositories.user_repository import UserRepository
+from repositories.session_repository import SessionRepository
+from security.session_token import SessionToken
 from sqlalchemy.exc import IntegrityError
 from core.logging_config import _get_logger
-from core.exception import EmailAlreadyExistsError, UsernameAlreadyExistsError, InvalidPreferredLanguageError
-
+from core.config import config
+from security.jwt import JWT
+from core.exception import (
+    EmailAlreadyExistsError, 
+    UsernameAlreadyExistsError,
+    InvalidPreferredLanguageError,
+    InvalidCredentialsError,
+    AccountInactiveError)
+from datetime import datetime,timezone,timedelta
 
 logger = _get_logger()
 
@@ -20,10 +29,20 @@ class AuthenticationService:
     """
 
 
-    def __init__(self, user_repository: UserRepository, password_hasher: PasswordHashing):
+    def __init__(self, user_repository: UserRepository, 
+                password_hasher: PasswordHashing,
+                session_repository: SessionRepository,
+                session_token: SessionToken,
+                jwt: JWT,
+                config_details: config):
 
         self.password_hashed = password_hasher
         self.user_repo = user_repository
+        self.session_repo = session_repository
+        self.session_token = session_token
+        self.jwt = jwt
+        self.cfg = config_details
+        
 
     async def register(self,**kwargs):
         
@@ -72,3 +91,46 @@ class AuthenticationService:
 
         logger.info("User registered successfully")
         return create_user
+
+
+    async def login(self, **kwargs):
+
+        account_details =  await self.user_repo.get_by_username(kwargs["username"])
+
+        if not account_details:
+            raise InvalidCredentialsError()
+                
+        if not self.password_hashed.verify_password(password= kwargs['password'],password_hash=account_details['password_hash']):
+            raise InvalidCredentialsError()
+
+        if account_details['account_status'] != 'ACTIVE':
+            raise AccountInactiveError()
+        
+        access_token = self.jwt.create_access_token(sub=str(account_details["user_id"]))
+        expires_in = self.cfg.ACCESS_TOKEN_EXPIRE_MINUTES * 60 
+
+
+        raw_hash_token = self.session_token.generate_token()
+        token_hash = self.session_token.hash_token(raw_hash_token)
+        expires_at = datetime.now(timezone.utc) + timedelta(days=self.cfg.SESSION_TOKEN_EXPIRE_DAYS)
+
+        payload = {
+            "user_id" : account_details['user_id'],
+            "token_hash" : token_hash,
+            "ip_address" : kwargs['ip_address'],
+            "user_agent" : kwargs['user_agent'],
+            "expires_at" : expires_at
+        }
+
+        logger.info("User logged in successfully")
+        
+        create = await self.session_repo.create(**payload)
+
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": expires_in,
+            "user_id": account_details["user_id"],
+            "username": account_details["username"],
+            "refresh_token": raw_hash_token,
+        }

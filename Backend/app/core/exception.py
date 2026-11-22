@@ -17,3 +17,14 @@ class InvalidPreferredLanguageError(AuthenticationError):
 
     def __init__(self, message: str = "Invalid preferred language ID.") -> None:
         super().__init__(message)
+
+
+class InvalidCredentialsError(AuthenticationError):
+
+    def __init__(self, message: str = "Invalid username or Password") -> None:
+        super().__init__(message)
+
+class AccountInactiveError(AuthenticationError):
+
+    def __init__(self, message: str = "User account is not active") -> None:
+        super().__init__(message)
