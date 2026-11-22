@@ -96,7 +96,6 @@ class AuthenticationService:
     async def login(self, **kwargs):
 
         account_details =  await self.user_repo.get_by_username(kwargs["username"])
-
         if not account_details:
             raise InvalidCredentialsError()
                 
@@ -119,13 +118,19 @@ class AuthenticationService:
             "token_hash" : token_hash,
             "ip_address" : kwargs['ip_address'],
             "user_agent" : kwargs['user_agent'],
-            "expires_at" : expires_at
+            "expires_at" : expires_at,
+            "device_info" : kwargs['device_info']
         }
+
+        
+        
+        created_session = await self.session_repo.create(**payload)
+
+        if not created_session:
+            raise RuntimeError("Unable to create user session")
 
         logger.info("User logged in successfully")
         
-        create = await self.session_repo.create(**payload)
-
         return {
             "access_token": access_token,
             "token_type": "bearer",

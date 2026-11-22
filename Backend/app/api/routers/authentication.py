@@ -55,7 +55,6 @@ async def register_user(request: RegisterRequest , auth_service : Annotated[Auth
 
 
     
-    
 @router.post("/login", response_model = LoginResponse, status_code=status.HTTP_200_OK)
 async def login(payload: LoginRequest , request: Request, response: Response, auth_service : Annotated[AuthenticationService,Depends(get_authentication_service)]):
 
@@ -65,7 +64,8 @@ async def login(payload: LoginRequest , request: Request, response: Response, au
             username = payload.username,
             password = payload.password,
             ip_address = request.client.host if request.client else None,
-            user_agent = request.headers.get("user-agent")
+            user_agent = request.headers.get("user-agent"),
+            device_info = request.headers.get("x-device-info")
         )
         
         refresh_token = result.pop("refresh_token")
@@ -73,7 +73,7 @@ async def login(payload: LoginRequest , request: Request, response: Response, au
             key="refresh_token",
             value=refresh_token,
             httponly=True,
-            secure=False,  # Change to True in production over HTTPS
+            secure=True,  # Change to True in production over HTTPS
             samesite="lax",
             max_age=cfg.SESSION_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         )
@@ -91,12 +91,19 @@ async def login(payload: LoginRequest , request: Request, response: Response, au
             status_code = status.HTTP_403_FORBIDDEN,
             detail= str(e)
         )
+    
+    except OperationalError as e:
+        logger.exception("Database operational error during registration")
+        raise HTTPException(
+              status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+              detail="Database service is temporarily unavailable.",
+          ) from e
         
     except SQLAlchemyError as e:
-        logger.exception("Unexpected database error during registration")
+        logger.exception("Unexpected database error during login")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An internal error occurred while registering the user.",
+            detail="An internal error occurred while logging the user.",
         ) from e
 
 
