@@ -48,7 +48,7 @@ class AuthenticationService:
             create_user = await self.user_repo.create(**payload)
             
         except IntegrityError as exc:
-
+            
             orig = exc.orig
             cause = getattr(orig, "__cause__", None)
             constraint_name = (
@@ -56,7 +56,7 @@ class AuthenticationService:
                 or getattr(orig, "constraint_name", None)
                 or getattr(getattr(orig, "diag", None), "constraint_name", None)
             )
-            logger.error(f"Database integrity error during registration")
+            logger.exception(f"Database integrity error during registration")
             if constraint_name == "users_email_key":
                 raise EmailAlreadyExistsError("Email ID already exists") from exc
 

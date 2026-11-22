@@ -26,10 +26,17 @@ async def register_user(request: RegisterRequest , auth_service : Annotated[Auth
     
     except InvalidPreferredLanguageError as e:
         raise HTTPException(
-            status_code= status.HTTP_422_UNPROCESSABLE_CONTENT,
+            status_code= status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail = str(e),
         ) from e
     
+    except OperationalError as e:
+        logger.exception("Database operational error during registration")
+        raise HTTPException(
+              status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+              detail="Database service is temporarily unavailable.",
+          ) from e
+
     except SQLAlchemyError as e:
         logger.exception("Unexpected database error during registration")
         raise HTTPException(
@@ -38,12 +45,7 @@ async def register_user(request: RegisterRequest , auth_service : Annotated[Auth
         ) from e
 
 
-    except OperationalError as e:
-        logger.exception("Database operational error during registration")
-        raise HTTPException(
-              status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-              detail="Database service is temporarily unavailable.",
-          ) from e
+    
     
 @router.post("/login", response_model = LoginResponse, status_code=status.HTTP_200_OK)
 async def login(request: LoginRequest , auth_service : Annotated[AuthenticationService,Depends(get_authentication_service)]):
