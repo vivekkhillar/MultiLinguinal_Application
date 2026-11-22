@@ -4,7 +4,7 @@
 >
 > **Repository:** `vivekkhillar/MultiLinguinal_Application`  
 > **Branch:** `main`  
-> **Last updated:** 2026--11-22
+> **Last updated:** 2026-11-22
 
 ---
 
