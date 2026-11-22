@@ -73,7 +73,7 @@ async def login(payload: LoginRequest , request: Request, response: Response, au
             key="refresh_token",
             value=refresh_token,
             httponly=True,
-            secure=True,  # Change to True in production over HTTPS
+            secure=False,  # Change to True in production over HTTPS
             samesite="lax",
             max_age=cfg.SESSION_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         )
@@ -93,7 +93,7 @@ async def login(payload: LoginRequest , request: Request, response: Response, au
         )
     
     except OperationalError as e:
-        logger.exception("Database operational error during registration")
+        logger.exception("Database operational error during login")
         raise HTTPException(
               status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
               detail="Database service is temporarily unavailable.",
