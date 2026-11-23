@@ -11,7 +11,8 @@ from core.exception import (
     UsernameAlreadyExistsError,
     InvalidPreferredLanguageError,
     InvalidCredentialsError,
-    AccountInactiveError)
+    AccountInactiveError,
+    SessionTokenError)
 from datetime import datetime,timezone,timedelta
 
 logger = _get_logger()
@@ -105,10 +106,12 @@ class AuthenticationService:
         if account_details['account_status'] != 'ACTIVE':
             raise AccountInactiveError()
         
+        # Generated and send in the response
         access_token = self.jwt.create_access_token(sub=str(account_details["user_id"]))
         expires_in = self.cfg.ACCESS_TOKEN_EXPIRE_MINUTES * 60 
 
-
+        # generated and send in the refresh_token field during the logout option called then from cookies it will find raw_hash_token
+        # and raw_hash_token will hashed and store into the db user_session
         raw_hash_token = self.session_token.generate_token()
         token_hash = self.session_token.hash_token(raw_hash_token)
         expires_at = datetime.now(timezone.utc) + timedelta(days=self.cfg.SESSION_TOKEN_EXPIRE_DAYS)
@@ -139,3 +142,29 @@ class AuthenticationService:
             "username": account_details["username"],
             "refresh_token": raw_hash_token,
         }
+    
+
+
+    async def logout(self, **kwargs) -> dict[str,str]:
+
+        if not kwargs['refresh_token']:
+            logger.warning("No session is actived")
+            return {"message": "Logged out successfully"}
+
+        try:
+            
+            # hashed the token here and passed into the below get_by_token_hash
+            token_hash = self.session_token.hash_token(kwargs['refresh_token'])
+
+        except SessionTokenError:
+            
+            logger.warning("Malformed refresh token received during logout")
+            return {"message": "Logged out successfully."}
+
+        session_detail = await self.session_repo.get_by_token_hash(token_hash)
+            
+        if session_detail:
+            await self.session_repo.revoke(session_detail['session_id'])
+            return {"message": "Logged out successfully."}
+
+        return {"message": "Logged out successfully."}

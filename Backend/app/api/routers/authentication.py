@@ -2,7 +2,12 @@ from fastapi import APIRouter, HTTPException,status,Request,Depends,Response
 from typing import Annotated
 from services.authentication_service import AuthenticationService
 from sqlalchemy.exc import SQLAlchemyError,OperationalError
-from schemas.authentication import RegisterRequest,RegisterResponse,LoginResponse,LoginRequest
+from schemas.authentication import (
+    RegisterRequest,
+    RegisterResponse,
+    LoginResponse,
+    LoginRequest,
+    LogoutResponse)
 from api.dependencies import get_authentication_service
 from core.exception import (
     EmailAlreadyExistsError, 
@@ -107,3 +112,35 @@ async def login(payload: LoginRequest , request: Request, response: Response, au
         ) from e
 
 
+
+@router.post("/logout", response_model=LogoutResponse , status_code= status.HTTP_200_OK)
+async def logout(requset: Request,response : Response, auth_service : Annotated[AuthenticationService,Depends(get_authentication_service)]):
+
+    try:
+
+        refresh_token = requset.cookies.get('refresh_token')
+        result = await auth_service.logout(refresh_token=refresh_token)
+
+        response.delete_cookie(
+            key="refresh_token",
+            httponly=True,
+            secure=False,  # Match the same flags used in set_cookie()
+            samesite="lax",
+        )
+
+        return result
+
+    except OperationalError as e:
+
+        logger.exception("Database operational error during logout")
+        raise HTTPException(
+            status_code= status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database service is temporarily unavailable.",
+        ) from e
+    
+    except SQLAlchemyError as e:
+        logger.exception("Unexpected database error during logout")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An internal error occurred while logging out.",
+        ) from e

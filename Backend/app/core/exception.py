@@ -28,3 +28,8 @@ class AccountInactiveError(AuthenticationError):
 
     def __init__(self, message: str = "User account is not active") -> None:
         super().__init__(message)
+
+class SessionTokenError(AuthenticationError):
+
+    def __init__(self, message : str = "Malformed refresh token received during logout") -> None:
+        super().__init__(message)
