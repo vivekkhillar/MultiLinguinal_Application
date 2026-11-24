@@ -114,15 +114,19 @@ async def login(payload: LoginRequest , request: Request, response: Response, au
         ) from e
 
 @router.post("/refresh", response_model= RefreshResponse,status_code= status.HTTP_200_OK)
-async def refresh():
-    return {"msg": "Refreshed token dummy response"}
+async def refresh(request: Request, response : Response, auth_service : Annotated[AuthenticationService, Depends(get_authentication_service)]):
 
+    try:
+        _refresh_token = request.cookies.get('refresh_token')
+        result = await auth_service.get    
+
+    
 @router.post("/logout", response_model=LogoutResponse , status_code= status.HTTP_200_OK)
-async def logout(requset: Request,response : Response, auth_service : Annotated[AuthenticationService,Depends(get_authentication_service)]):
+async def logout(request: Request,response : Response, auth_service : Annotated[AuthenticationService,Depends(get_authentication_service)]):
 
     try:
 
-        refresh_token = requset.cookies.get('refresh_token')
+        refresh_token = request.cookies.get('refresh_token')
         result = await auth_service.logout(refresh_token=refresh_token)
 
         response.delete_cookie(

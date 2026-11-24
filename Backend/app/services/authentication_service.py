@@ -143,7 +143,8 @@ class AuthenticationService:
             "refresh_token": raw_hash_token,
         }
     
-
+    async def refresh(self, **kwargs) -> dict[str,str]:
+        return None
 
     async def logout(self, **kwargs) -> dict[str,str]:
 
