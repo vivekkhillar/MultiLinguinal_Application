@@ -7,7 +7,10 @@ from schemas.authentication import (
     RegisterResponse,
     LoginResponse,
     LoginRequest,
-    LogoutResponse)
+    LogoutResponse,
+    RefreshResponse
+    )
+
 from api.dependencies import get_authentication_service
 from core.exception import (
     EmailAlreadyExistsError, 
@@ -57,7 +60,6 @@ async def register_user(request: RegisterRequest , auth_service : Annotated[Auth
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An internal error occurred while registering the user.",
         ) from e
-
 
     
 @router.post("/login", response_model = LoginResponse, status_code=status.HTTP_200_OK)
@@ -111,7 +113,9 @@ async def login(payload: LoginRequest , request: Request, response: Response, au
             detail="An internal error occurred while logging the user.",
         ) from e
 
-
+@router.post("/refresh", response_model= RefreshResponse,status_code= status.HTTP_200_OK)
+async def refresh():
+    return {"msg": "Refreshed token dummy response"}
 
 @router.post("/logout", response_model=LogoutResponse , status_code= status.HTTP_200_OK)
 async def logout(requset: Request,response : Response, auth_service : Annotated[AuthenticationService,Depends(get_authentication_service)]):
