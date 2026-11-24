@@ -4,7 +4,7 @@
 >
 > **Repository:** `vivekkhillar/MultiLinguinal_Application`  
 > **Branch:** `main`  
-> **Last updated:** 2026--11-25
+> **Last updated:** 2026-11-25
 
 ---
 
@@ -316,3 +316,44 @@ After manual validation:
 - Marked all four APIs as implemented and source-reviewed, but manual API validation and API test suites remain pending.
 - Recorded cookie Secure configuration, transaction lifecycle, and access-token behavior after logout as items to verify or harden.
 - Set the immediate next task to manual Swagger validation of the four endpoints, beginning with Register.
+
+
+---
+
+## 11. Architecture document cross-check — Step 8 (2026-11-25)
+
+Reviewed `Architecture/phase_1_architecture.md`, Section 8.1–8.12, against the current `main` source files. This is a source review only; no tests or API calls were executed during this review.
+
+| Architecture substep | Current finding | Status |
+|---|---|---|
+| 8.1 Password hashing | Argon2 utility and four tests are present. Malformed-hash behavior is caught broadly; add a focused test and review exception scope. | Core complete; hardening pending |
+| 8.2 Authentication configuration | JWT secret, algorithm, 15-minute access expiry and 7-day session expiry are centralized in Pydantic Settings. Configuration tests/validation and secret hygiene still need verification. | Implemented; validation pending |
+| 8.3 Access-token utility | Create/decode, required claims, expiry and algorithm restriction are implemented; six JWT tests are present. | Core complete; verify tests |
+| 8.4 Session-token utility/persistence | Secure opaque token generation/hash and PostgreSQL session repository are present. Session utility tests exist. | Core implemented; integration tests pending |
+| 8.5 User registration | Schema, service, repository and route are present with duplicate and preferred-language handling. Identifier normalization and password-policy coverage need review; runtime validation pending. | Implemented; validation/hardening pending |
+| 8.6 Login/account status | Username/password verification and ACTIVE account enforcement are implemented. Latest service does not update `last_login_at`; failed-login rate limiting is not integrated/verified. | Partially complete |
+| 8.7 Refresh/logout/revocation | Refresh rotation, expiry/status checks, logout revocation and idempotent response are implemented. Verify transaction behavior and already-issued access-token policy. | Core implemented; validation pending |
+| 8.8 Authentication dependency/authorization | Current dependencies construct repositories/services and DB sessions only. No bearer-token/current-user dependency or resource authorization is present in reviewed `api/dependencies.py`. | Pending |
+| 8.9 Credential safety | HttpOnly cookie is used, but `secure=False` is hardcoded in routes. CSRF policy, rate limiting, password policy and log/secret review are not complete. | Partially complete |
+| 8.10 Authentication endpoints | Register, Login, Refresh and Logout routes exist. Architecture also calls for a current-user endpoint, which is not present in the reviewed router. | Four core endpoints implemented; current-user endpoint pending |
+| 8.11 Testing/validation | Security utility tests exist; API/service/database/dependency/authorization tests and actual manual Swagger validation remain pending. | Partially complete |
+| 8.12 Completion review | Required items above are not all complete or validated. | Not complete |
+
+### Additional transaction review
+
+`Backend/app/infrastructure/database/connection.py` was inspected. Its `get_session()` context manager commits after a successful yield and rolls back when an exception escapes. This is a good shared transaction boundary. Repository methods should not independently commit. Note that `UserRepository.create()` uses a nested transaction/savepoint; the outer dependency context still controls the final commit/rollback.
+
+### Important distinction
+
+Step 8.1–8.12 are architecture checklist substeps, not a statement that every substep must have a separate file or endpoint. Current implementation has made substantial progress, but Step 8 cannot yet be marked complete. The biggest functional gaps are the protected-user dependency/authorization (8.8), current-user endpoint (8.10), last-login timestamp update (8.6), security hardening (8.9), and API/integration tests plus runtime validation (8.11).
+
+### Next actions
+
+1. Manually validate Register, Login, Refresh and Logout through Swagger and record actual results.
+2. Add/update `last_login_at` after successful login (after confirming the DB column/schema and repository contract).
+3. Implement bearer access-token authentication and current-user resolution dependency; enforce active-account checks.
+4. Add the current-user endpoint using the authenticated-user dependency.
+5. Decide and implement access-token behavior after logout (session check or explicitly documented short-lived JWT trade-off).
+6. Make cookie Secure behavior environment-driven; define CSRF and rate-limit policies, and verify Redis integration.
+7. Add service, repository/transaction, API, dependency and authorization tests; execute and record results.
+8. Revisit every unchecked acceptance item in Section 8.1–8.12 before marking Step 8 complete.
