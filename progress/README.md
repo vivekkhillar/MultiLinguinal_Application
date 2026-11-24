@@ -4,7 +4,7 @@
 >
 > **Repository:** `vivekkhillar/MultiLinguinal_Application`  
 > **Branch:** `main`  
-> **Last updated:** 2026-11-22
+> **Last updated:** 2026--11-25
 
 ---
 
@@ -17,12 +17,12 @@ At the beginning of each project discussion:
 4. Keep implementation status separate from test status.
 
 After each meaningful milestone:
-1. Update the roadmap and decisions.
+1. Update this roadmap and the decisions.
 2. Record only tests actually run and their reported results.
 3. Update blockers and the immediate next step.
 4. Commit the updated checkpoint.
 
-**Working style:** Work one logical step at a time. The user implements code and asks for review. Fetch the latest GitHub files before every code review. Do not modify code unless explicitly requested. Never inspect or expose `.env` secrets.
+**Working style:** Work one logical step at a time. The user implements code and asks for review. Fetch the latest GitHub files before every code review. Do not modify application code unless explicitly asked. Never inspect or expose `.env` secrets.
 
 ---
 
@@ -30,29 +30,59 @@ After each meaningful milestone:
 
 **Current phase:** Phase 1 — Core Application Foundation  
 **Current roadmap step:** Step 8 — Authentication & Authorization  
-**Current substep:** Step 8.9 — Authentication routes; registration route implemented, login route scaffolded.
+**Current substep:** Step 8.9 — Four authentication API routes implemented; correction review complete; manual validation is next.
 
 ### Authentication progress
 
 | Substep | Work | Status |
 |---|---|---|
-| 8.1 | Password utility | Complete — 6 tests reported passing |
+| 8.1 | Password utility | Complete — 6 tests previously reported passing |
 | 8.2 | Authentication configuration | Complete |
-| 8.3 | JWT utility | Complete — 6 tests reported passing |
-| 8.4 | Session-token utility | Complete — 18 tests reported passing |
-| 8.5.1 | UserRepository read methods and create | Complete — 10 tests reported passing |
-| 8.5.2 | SessionRepository | Complete — 14 tests reported passing |
+| 8.3 | JWT utility | Complete — 6 tests previously reported passing |
+| 8.4 | Session-token utility | Complete — 18 tests previously reported passing |
+| 8.5.1 | UserRepository read methods and create | Complete — 10 tests previously reported passing |
+| 8.5.2 | SessionRepository | Implemented/reviewed — 14 tests previously reported passing |
 | 8.6 | AuthenticationService.register() | Implemented and reviewed |
 | 8.7 | Authentication request/response schemas | Implemented and reviewed |
 | 8.8 | API dependencies | Implemented and reviewed |
-| 8.9.1 | Register API route | Implemented and reviewed; manual API validation pending |
-| 8.9.2 | Login API route | Scaffold exists; login service and endpoint behavior pending |
-| 8.9.3 | Refresh API route | Pending |
-| 8.9.4 | Logout API route | Pending |
+| 8.9.1 | Register API | Implemented and reviewed; manual validation pending |
+| 8.9.2 | Login API | Implemented and reviewed; manual validation pending |
+| 8.9.3 | Refresh API | Implemented and reviewed; manual validation pending |
+| 8.9.4 | Logout API | Implemented and reviewed; manual validation pending |
 | 8.10 | Centralized router registration | Implemented |
-| 8.11 | Authentication API test suites | Pending — write after all four endpoints are implemented |
+| 8.11 | Authentication API test suites | Pending — agreed to write after all four APIs are implemented |
 
-**Test-status note:** The test counts above are previously reported results. The latest GitHub review did not execute tests. Registration API manual validation has not yet been confirmed.
+**Important test-status note:** The test counts above are results previously reported by the user. The latest GitHub review inspected source code only; it did not execute tests or validate the APIs at runtime. Do not mark manual/API tests as passed until actual results are shared or executed.
+
+### Latest code review checkpoint (2026-11-25)
+
+Reviewed latest `main` versions of:
+- `Backend/app/api/routers/authentication.py` — blob SHA `ece1d05ebffd61740df6c55bd30c078bae77a31f`
+- `Backend/app/services/authentication_service.py` — blob SHA `65192dfd0526ffd1fa895853284a1addc78ea067`
+- `Backend/app/core/exception.py` — blob SHA `a1c3eb97534940c8029783a3e569377b9295672b`
+- `Backend/app/security/session_token.py` — blob SHA `834a30b827b0cc515a2992d637ee2c29014be90c`
+- `Backend/app/api/dependencies.py` — blob SHA `4d400b3579cd22aa212cd7375d43cc1c68aebe52`
+
+Corrections confirmed in latest code:
+- Refresh API's unexpected database error message now correctly refers to refreshing the session.
+- Refresh invalid-token attempts are logged as warnings rather than exception stack traces.
+- Login's raw refresh token variable is now named `raw_refresh_token`.
+- `Any` is imported for the refresh service return annotation.
+- Router imports `SessionCreationError` before using it in the Login exception handler.
+- The duplicate `SessionTokenError` definition was removed from `core/exception.py`; the token utility's `SessionTokenError` remains in `security/session_token.py`.
+- Login raises `SessionCreationError` if session creation returns no row, and the router maps it to HTTP 500.
+- Refresh normalizes a naive database expiry datetime to UTC before comparison.
+- Logout checks the result of the revoke operation and logs if it was already revoked or no longer found.
+
+**Review outcome:** The two missing imports identified in the previous review are fixed. The four API implementations are now source-reviewed, but not yet runtime-validated.
+
+### Remaining review notes / risks
+
+1. Cookie creation currently uses `secure=False` in Login and Refresh, and deletion uses matching flags in Logout. This is acceptable only for local HTTP development. Before HTTPS production deployment, make the Secure flag environment/configuration-driven and true in production.
+2. Confirm that the database session context commits successful writes and rolls back failed transactions. This is especially important for Register, Login session creation, Refresh token rotation and Logout revocation. The latest review has not yet verified the database manager's transaction lifecycle.
+3. The refresh service handles timezone-naive expiry values by assuming UTC. Confirm the actual database column type and driver behavior; prefer timezone-aware UTC timestamps end-to-end.
+4. Logout revokes the refresh session, but an already-issued access JWT can remain usable until its 15-minute expiry unless protected endpoints check session validity or an access-token revocation mechanism is added.
+5. Rate limiting and failed-login tracking are not yet confirmed as integrated into these API flows.
 
 ---
 
@@ -111,98 +141,103 @@ PostgreSQL
 
 Do not put SQL in services or business logic in repositories.
 
-### User creation and profile updates
-
-- Registration is orchestrated by `AuthenticationService.register()`.
-- The service checks existing email and username, hashes the password, then calls `UserRepository.create()`.
-- The repository performs the database insert and returns safe user fields.
-- Profile updates will later use a separate `UserService.update_profile()` and an update method in the existing UserRepository.
-
 ### Authentication and session policy
 
 - Access JWT lifetime: **15 minutes**.
 - Opaque session/refresh token lifetime: **fixed 7 days** from session creation.
 - No sliding expiry: do not extend `expires_at` during refresh.
 - Store only the SHA-256 hash of the opaque session token in `chat_app.user_sessions`; never store the raw token.
-- Return the raw session token in a Secure, HttpOnly cookie with suitable SameSite and HTTPS settings for deployment.
+- Return the raw session token in an HttpOnly cookie with suitable SameSite and HTTPS settings for deployment.
 - JWT access token and opaque session token are different credentials.
 - Multiple active sessions per user are allowed.
+- Login currently authenticates by username, not email.
 
 ### Login flow
 
-1. Look up the user using the submitted username (the current `LoginRequest` schema accepts `username`, not email).
+1. Look up the user using the submitted username.
 2. Verify the submitted password against the stored password hash.
-3. On invalid username or password, return the same authentication failure to avoid username enumeration.
-4. Create a short-lived access JWT.
-5. Generate a random opaque session token and hash it.
-6. Calculate fixed `expires_at = now + 7 days`.
-7. Create the session through SessionRepository.
-8. Return the access token and set the raw session token as an HttpOnly cookie.
-
-### Login API HTTP status codes
-
-| Code | Meaning / condition |
-|---|---|
-| `200 OK` | Login successful; session created and access token returned |
-| `401 Unauthorized` | Invalid username or password; use the same public response for both |
-| `422 Unprocessable Entity` | Request body fails Pydantic/schema validation |
-| `403 Forbidden` | Account is disabled/blocked, if this policy is implemented |
-| `429 Too Many Requests` | Login rate limit exceeded; add when rate limiting is implemented |
-| `503 Service Unavailable` | Required database/service is temporarily unavailable |
-| `500 Internal Server Error` | Unexpected backend error |
-
-Notes:
-- FastAPI/Pydantic automatically returns 422 for request validation errors before the route handler runs.
-- 403 and 429 are conditional future behavior; do not add artificial branches until account-status policy and rate limiting exist.
-- Do not return different 401 messages for unknown usernames and incorrect passwords.
+3. Return the same public 401 response for unknown username and incorrect password.
+4. Check account status.
+5. Create a short-lived access JWT.
+6. Generate a random opaque session token and hash it.
+7. Calculate fixed `expires_at = now + 7 days`.
+8. Create the session through SessionRepository.
+9. Return the access token and set the raw session token as an HttpOnly cookie.
 
 ### Refresh flow
 
 1. Read the opaque token from the cookie.
 2. Hash it and look up the session by token hash.
-3. Validate that the session exists, is ACTIVE, is not revoked and has not expired.
+3. Validate that the session exists, is ACTIVE and has not expired.
 4. Obtain user identity from the matched database session; do not trust a client-supplied user_id.
 5. Generate a new opaque token/hash and a new access JWT.
 6. Call `SessionRepository.update_token()` with session_id, old hash and new hash.
 7. Only if the conditional DB update succeeds, set the new cookie and return the new access token.
 8. Preserve the original `expires_at`; update activity only.
+9. Missing, malformed, unknown, revoked, expired or concurrently rotated refresh tokens should all result in the same public 401 response.
 
 ### Logout flow
 
 - Identify the session using the refresh/session cookie.
 - Revoke the matching session in the database.
 - Clear the session cookie using matching cookie path/domain settings.
-- Decide and document whether logout is idempotent for missing/expired sessions.
-- An already-issued access JWT may remain valid until its 15-minute expiry unless protected routes also check session state (or another revocation mechanism).
+- Current behavior is intentionally idempotent for missing, malformed or unknown refresh cookies.
+- An already-issued access JWT may remain valid until its 15-minute expiry unless protected routes also check session state or another revocation mechanism.
 
 ### SessionRepository.update_token() reviewed behavior
 
-Previously reviewed behavior:
 - Requires session_id, old_token_hash and new_token_hash.
 - Updates only when session_id and old hash match, status is ACTIVE and expiry is in the future.
 - Updates `last_activity_at`, but does not extend `expires_at`.
 - Returns the updated row or `None` when no row matches.
-
-Re-fetch the latest repository implementation before relying on these details during refresh implementation.
+- The conditional update prevents two concurrent refresh requests from both successfully rotating the same old token.
 
 ---
 
-## 5. Authentication API plan
+## 5. Authentication API contract and status
 
-| Method | Endpoint | Responsibility | Current status |
+| Method | Endpoint | Responsibility | Implementation |
 |---|---|---|---|
-| POST | `/auth/register` | Register a new user | Implemented; manual validation pending |
-| POST | `/auth/login` | Authenticate and create a session | Route scaffold exists; implementation pending |
-| POST | `/auth/refresh` | Rotate session token and issue a new access JWT | Pending |
-| POST | `/auth/logout` | Revoke current session and clear cookie | Pending |
+| POST | `/auth/register` | Register a new user | Implemented |
+| POST | `/auth/login` | Authenticate and create a session | Implemented |
+| POST | `/auth/refresh` | Rotate session token and issue a new access JWT | Implemented |
+| POST | `/auth/logout` | Revoke current session and clear cookie | Implemented |
 
 The JWT creation utility is an internal backend utility, not a separate public API endpoint.
 
-**Agreed implementation sequence:** Finish all four APIs first, then write their API test suites. Review each API incrementally across schema, router, service, repository interactions, exceptions and cookie behavior.
+### Expected HTTP behavior to validate
+
+| API | Scenario | Expected result |
+|---|---|---|
+| Register | Successful registration | 201 |
+| Register | Duplicate email or username | 409 |
+| Register | Invalid preferred-language ID | 422 |
+| Login | Valid credentials | 200 and refresh cookie |
+| Login | Invalid username/password | 401 |
+| Login | Inactive account | 403 |
+| Login | Database unavailable | 503 |
+| Refresh | Valid refresh cookie | 200, new access token and rotated cookie |
+| Refresh | Missing/invalid/expired/revoked/old token | 401 |
+| Refresh | Database unavailable | 503 |
+| Logout | Valid refresh cookie | 200, session revoked and cookie cleared |
+| Logout | Missing/unknown/malformed refresh cookie | 200, idempotent response |
+| Any API | Request schema validation fails | 422 from FastAPI |
+
+429 is not expected until rate limiting is implemented.
 
 ---
 
-## 6. Full Phase 1 roadmap
+## 6. Redis decision
+
+- PostgreSQL remains the source of truth for users and persistent sessions.
+- Redis complements PostgreSQL for rate limiting, failed-login attempt tracking, optional access-token denylist and temporary security state.
+- Do not move persistent session records from PostgreSQL to Redis.
+- User previously reported Redis core implementation/testing as complete; verify actual integration before marking authentication rate limiting or failed-login tracking complete.
+- Add HTTP 429 only when rate limiting is actually implemented.
+
+---
+
+## 7. Full Phase 1 roadmap
 
 | # | Area | Status |
 |---|---|---|
@@ -212,8 +247,8 @@ The JWT creation utility is an internal backend utility, not a separate public A
 | 4 | Backend Architecture — FastAPI | Complete |
 | 5 | AI / Language / Translation Architecture | Approved / locked |
 | 6 | PostgreSQL Database Design & Implementation | Complete |
-| 7 | Redis Architecture & Implementation | Core implementation/testing complete; production hardening deferred |
-| 8 | Authentication & Authorization | **In progress** |
+| 7 | Redis Architecture & Implementation | Core implementation/testing reported complete; auth integration/hardening to verify |
+| 8 | Authentication & Authorization | **In progress — APIs implemented; validation and tests pending** |
 | 9 | User Profile & Language Preference | Pending |
 | 10 | Language Configuration & Management | Pending |
 | 11 | Chat Room & Group Chat Foundation | Pending |
@@ -233,31 +268,24 @@ A “complete” roadmap label means planned core work is complete; it does not 
 
 ---
 
-## 7. Cross-cutting foundation notes
-
-### Logging
-- Logging foundation exists in `Backend/app/core/logging_config.py`.
-- `Backend/app/core/lifespan.py` initializes logging before Redis/database connections.
-- Logging tests were previously reported as 7 passing.
-- Revisit multi-worker logging before production deployment.
-- Log unexpected server/database failures; avoid logging expected authentication failures as server exceptions.
-
-### Application lifecycle
-- Preserve the existing `LifeSpan` class and lifecycle design when making backend changes.
-
----
-
 ## 8. Immediate next steps
 
-1. **Manually validate Register API** through Swagger (`/docs`): success 201, duplicate email 409, duplicate username 409, invalid preferred-language ID 422. Record actual results.
-2. **Implement Login API**, starting by inspecting the latest UserRepository, SessionRepository, password utility, JWT utility, session-token utility, schemas and dependency wiring.
-3. Add service-level login behavior, then complete the route's explicit exception-to-HTTP mappings and refresh-token cookie handling.
-4. Implement Refresh API.
-5. Implement Logout API.
-6. Once all four endpoints are implemented, create and run API test suites.
-7. Review protected-route authentication and authorization dependencies.
+**Current focus: manual Swagger validation of the four authentication endpoints.**
 
-**Current focus:** Login API. Do not start refresh/logout until login's service, route, response and cookie behavior have been reviewed.
+Proceed one endpoint at a time:
+
+1. Start the backend and open `/docs`.
+2. Validate Register: successful registration, duplicate email, duplicate username and invalid preferred-language ID.
+3. Validate Login: valid credentials, invalid credentials and inactive account (if test data exists). Confirm the refresh cookie is set and the raw refresh token is not included in the JSON response.
+4. Validate Refresh: use the cookie from Login; confirm a new access token and cookie are returned, the stored hash rotates, the old token no longer works, and the original expiry is unchanged.
+5. Validate Logout: confirm the session becomes REVOKED and the cookie is cleared; also check missing-cookie behavior.
+6. Record actual response codes and database observations. Do not claim tests passed without evidence.
+
+After manual validation:
+7. Verify database transaction commit/rollback behavior.
+8. Integrate/verify Redis authentication protections (rate limiting and failed-login tracking) before final API test suites, consistent with the agreed plan.
+9. Write and run API test suites for all four endpoints.
+10. Build protected-route authentication/authorization dependencies and decide the access-token revocation strategy.
 
 ---
 
@@ -267,6 +295,7 @@ A “complete” roadmap label means planned core work is complete; it does not 
 - [ ] Inspect latest relevant code from `main`.
 - [ ] Confirm API → service → repository layering.
 - [ ] Check validation, security, exception mapping and transaction behavior.
+- [ ] Manually validate the API behavior.
 - [ ] Add/update tests using existing project patterns.
 - [ ] Run tests and record exact results; never claim unrun tests passed.
 - [ ] Review regressions and unintended changes.
@@ -278,10 +307,12 @@ A “complete” roadmap label means planned core work is complete; it does not 
 
 ## 10. Change log
 
-### 2026-11-22
-- Reconciled the checkpoint with the latest reviewed authentication router, service, schemas and exception definitions on `main`.
-- Updated the authentication roadmap: registration service/schema/dependencies and registration route are implemented and reviewed; registration manual validation is still pending.
-- Recorded that the login route is currently a scaffold and the login service behavior is not yet implemented.
-- Added the recommended Login API status-code contract, including the security rule to return the same 401 response for unknown username and incorrect password.
-- Confirmed the agreed sequence: implement login, refresh and logout, then write API test suites for all four endpoints.
-- Recorded the next action: manually validate registration, then implement Login API incrementally.
+### 2026-11-25
+- Reconciled the checkpoint with the latest authentication router, service, exception, token utility and dependency files on `main`.
+- Confirmed that Register, Login, Refresh and Logout routes and their corresponding service flows are implemented.
+- Confirmed fixes for the missing `Any` import and missing `SessionCreationError` router import.
+- Confirmed removal of the duplicate `SessionTokenError` from core exceptions.
+- Confirmed Refresh error wording/logging, UTC handling for naive expiry values, Login session-creation error handling, and Logout revoke-result logging.
+- Marked all four APIs as implemented and source-reviewed, but manual API validation and API test suites remain pending.
+- Recorded cookie Secure configuration, transaction lifecycle, and access-token behavior after logout as items to verify or harden.
+- Set the immediate next task to manual Swagger validation of the four endpoints, beginning with Register.
