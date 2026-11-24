@@ -33,3 +33,8 @@ class SessionTokenError(AuthenticationError):
 
     def __init__(self, message : str = "Malformed refresh token received during logout") -> None:
         super().__init__(message)
+
+class InvalidSessionTokenError(AuthenticationError):
+
+    def __init__(self, message : str = "Invalid or expired session token") -> None:
+        super().__init__(message)

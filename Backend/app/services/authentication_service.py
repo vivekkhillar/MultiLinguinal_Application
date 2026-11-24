@@ -1,7 +1,7 @@
 from security.password import PasswordHashing
 from repositories.user_repository import UserRepository
 from repositories.session_repository import SessionRepository
-from security.session_token import SessionToken
+from security.session_token import SessionToken,SessionTokenError
 from sqlalchemy.exc import IntegrityError
 from core.logging_config import _get_logger
 from core.config import config
@@ -12,7 +12,8 @@ from core.exception import (
     InvalidPreferredLanguageError,
     InvalidCredentialsError,
     AccountInactiveError,
-    SessionTokenError)
+    InvalidSessionTokenError
+)
 from datetime import datetime,timezone,timedelta
 
 logger = _get_logger()
@@ -144,7 +145,53 @@ class AuthenticationService:
         }
     
     async def refresh(self, **kwargs) -> dict[str,str]:
-        return None
+        
+        refresh_token = kwargs.get("refresh_token")
+        if not refresh_token:
+            raise InvalidSessionTokenError()
+        
+        try:
+
+            _token_hash = self.session_token.hash_token(refresh_token)
+            
+        except SessionTokenError as exc:
+            raise InvalidSessionTokenError() from exc
+
+        _token_details = await self.session_repo.get_by_token_hash(_token_hash)
+        
+        if not _token_details:
+            raise InvalidSessionTokenError()
+        
+        if _token_details['session_status'] != 'ACTIVE':
+            raise InvalidSessionTokenError()
+        
+        # in the datetime.now(timezone.utc) which will return the current time with the UTC format
+        if _token_details['expires_at'] <= datetime.now(timezone.utc) : 
+            raise InvalidSessionTokenError()
+        
+        access_token = self.jwt.create_access_token(sub = str(_token_details['user_id']))
+        expires_in = self.cfg.ACCESS_TOKEN_EXPIRE_MINUTES*60
+
+
+        new_raw_refresh_token = self.session_token.generate_token()
+        _new_hash_token = self.session_token.hash_token(new_raw_refresh_token)
+
+        # Rotate token hash in database
+        updated_session = await self.session_repo.update_token(session_id = _token_details['session_id'],
+                                                                old_token_hash = _token_hash ,
+                                                                new_token_hash = _new_hash_token)
+
+        if not updated_session:
+            raise InvalidSessionTokenError()
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "expires_in": expires_in,
+            "refresh_token": new_raw_refresh_token,
+        }
+
+
 
     async def logout(self, **kwargs) -> dict[str,str]:
 

@@ -17,7 +17,8 @@ from core.exception import (
     UsernameAlreadyExistsError,
     InvalidPreferredLanguageError,
     InvalidCredentialsError,
-    AccountInactiveError
+    AccountInactiveError,
+    InvalidSessionTokenError
 )
 
 from core.logging_config import _get_logger
@@ -118,8 +119,42 @@ async def refresh(request: Request, response : Response, auth_service : Annotate
 
     try:
         _refresh_token = request.cookies.get('refresh_token')
-        result = await auth_service.get    
+        result = await auth_service.refresh(refresh_token=_refresh_token)
+        
+        refresh_token = result.pop("refresh_token")
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=False,  # Change to True in production over HTTPS
+            samesite="lax",
+            max_age=cfg.SESSION_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        )
+        
+        return result
+    
+    except InvalidSessionTokenError as e:
+        
+        logger.exception("Invalid or expired session token")
+        raise HTTPException(
+            status_code= status.HTTP_401_UNAUTHORIZED,
+            detail= str(e)
+        ) from e
+    
+    except OperationalError as e:
 
+        logger.exception("Database operational error during refresh")
+        raise HTTPException(
+            status_code= status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database service is temporarily unavailable.",
+        ) from e
+    
+    except SQLAlchemyError as e:
+        logger.exception("Unexpected database error during refresh")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An internal error occurred while logging out.",
+        ) from e 
     
 @router.post("/logout", response_model=LogoutResponse , status_code= status.HTTP_200_OK)
 async def logout(request: Request,response : Response, auth_service : Annotated[AuthenticationService,Depends(get_authentication_service)]):
@@ -138,6 +173,7 @@ async def logout(request: Request,response : Response, auth_service : Annotated[
 
         return result
 
+    
     except OperationalError as e:
 
         logger.exception("Database operational error during logout")
