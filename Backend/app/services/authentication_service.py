@@ -12,7 +12,8 @@ from core.exception import (
     InvalidPreferredLanguageError,
     InvalidCredentialsError,
     AccountInactiveError,
-    InvalidSessionTokenError
+    InvalidSessionTokenError, 
+    SessionCreationError
 )
 from datetime import datetime,timezone,timedelta
 
@@ -111,19 +112,19 @@ class AuthenticationService:
         access_token = self.jwt.create_access_token(sub=str(account_details["user_id"]))
         expires_in = self.cfg.ACCESS_TOKEN_EXPIRE_MINUTES * 60 
 
-        # generated and send in the refresh_token field during the logout option called then from cookies it will find raw_hash_token
-        # and raw_hash_token will hashed and store into the db user_session
-        raw_hash_token = self.session_token.generate_token()
-        token_hash = self.session_token.hash_token(raw_hash_token)
+        # generated and send in the refresh_token field during the logout option called then from cookies it will find raw_refresh_token
+        # and raw_refresh_token will hashed and store into the db user_session
+        raw_refresh_token = self.session_token.generate_token()
+        token_hash = self.session_token.hash_token(raw_refresh_token)
         expires_at = datetime.now(timezone.utc) + timedelta(days=self.cfg.SESSION_TOKEN_EXPIRE_DAYS)
 
         payload = {
-            "user_id" : account_details['user_id'],
-            "token_hash" : token_hash,
-            "ip_address" : kwargs['ip_address'],
-            "user_agent" : kwargs['user_agent'],
-            "expires_at" : expires_at,
-            "device_info" : kwargs['device_info']
+            "user_id": account_details["user_id"],
+            "token_hash": token_hash,
+            "ip_address": kwargs.get("ip_address"),
+            "user_agent": kwargs.get("user_agent"),
+            "expires_at": expires_at,
+            "device_info": kwargs.get("device_info"),
         }
 
         
@@ -131,7 +132,7 @@ class AuthenticationService:
         created_session = await self.session_repo.create(**payload)
 
         if not created_session:
-            raise RuntimeError("Unable to create user session")
+            raise SessionCreationError()
 
         logger.info("User logged in successfully")
         
@@ -141,10 +142,10 @@ class AuthenticationService:
             "expires_in": expires_in,
             "user_id": account_details["user_id"],
             "username": account_details["username"],
-            "refresh_token": raw_hash_token,
+            "refresh_token": raw_refresh_token,
         }
     
-    async def refresh(self, **kwargs) -> dict[str,str]:
+    async def refresh(self, **kwargs) -> dict[str, Any]:
         
         refresh_token = kwargs.get("refresh_token")
         if not refresh_token:
@@ -165,8 +166,12 @@ class AuthenticationService:
         if _token_details['session_status'] != 'ACTIVE':
             raise InvalidSessionTokenError()
         
+        expires_at = _token_details["expires_at"]
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+
         # in the datetime.now(timezone.utc) which will return the current time with the UTC format
-        if _token_details['expires_at'] <= datetime.now(timezone.utc) : 
+        if expires_at <= datetime.now(timezone.utc) : 
             raise InvalidSessionTokenError()
         
         access_token = self.jwt.create_access_token(sub = str(_token_details['user_id']))
@@ -196,7 +201,7 @@ class AuthenticationService:
     async def logout(self, **kwargs) -> dict[str,str]:
 
         if not kwargs['refresh_token']:
-            logger.warning("No session is actived")
+            logger.warning("No active refresh token cookie found during logout")
             return {"message": "Logged out successfully"}
 
         try:
@@ -212,7 +217,8 @@ class AuthenticationService:
         session_detail = await self.session_repo.get_by_token_hash(token_hash)
             
         if session_detail:
-            await self.session_repo.revoke(session_detail['session_id'])
-            return {"message": "Logged out successfully."}
-
+            revoked = await self.session_repo.revoke(session_detail["session_id"])
+            if not revoked:
+                logger.warning("Session was already revoked or not found during revoke")
+                
         return {"message": "Logged out successfully."}

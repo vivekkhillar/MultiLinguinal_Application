@@ -100,6 +100,13 @@ async def login(payload: LoginRequest , request: Request, response: Response, au
             detail= str(e)
         )
     
+    except SessionCreationError as e:
+        logger.exception("Failed to persist session during login")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        ) from e
+
     except OperationalError as e:
         logger.exception("Database operational error during login")
         raise HTTPException(
@@ -130,12 +137,12 @@ async def refresh(request: Request, response : Response, auth_service : Annotate
             samesite="lax",
             max_age=cfg.SESSION_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         )
-        
+
         return result
     
     except InvalidSessionTokenError as e:
         
-        logger.exception("Invalid or expired session token")
+        logger.warning("Invalid or expired refresh token attempt")
         raise HTTPException(
             status_code= status.HTTP_401_UNAUTHORIZED,
             detail= str(e)
@@ -143,18 +150,18 @@ async def refresh(request: Request, response : Response, auth_service : Annotate
     
     except OperationalError as e:
 
-        logger.exception("Database operational error during refresh")
+        logger.exception("Database operational error during token refresh")
         raise HTTPException(
             status_code= status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database service is temporarily unavailable.",
         ) from e
     
     except SQLAlchemyError as e:
-        logger.exception("Unexpected database error during refresh")
+        logger.exception("Unexpected database error during token refresh")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An internal error occurred while logging out.",
-        ) from e 
+            detail="An internal error occurred while refreshing the session.",
+        ) from e
     
 @router.post("/logout", response_model=LogoutResponse , status_code= status.HTTP_200_OK)
 async def logout(request: Request,response : Response, auth_service : Annotated[AuthenticationService,Depends(get_authentication_service)]):

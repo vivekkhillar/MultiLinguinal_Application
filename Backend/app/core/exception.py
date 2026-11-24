@@ -18,7 +18,6 @@ class InvalidPreferredLanguageError(AuthenticationError):
     def __init__(self, message: str = "Invalid preferred language ID.") -> None:
         super().__init__(message)
 
-
 class InvalidCredentialsError(AuthenticationError):
 
     def __init__(self, message: str = "Invalid username or Password") -> None:
@@ -29,12 +28,11 @@ class AccountInactiveError(AuthenticationError):
     def __init__(self, message: str = "User account is not active") -> None:
         super().__init__(message)
 
-class SessionTokenError(AuthenticationError):
-
-    def __init__(self, message : str = "Malformed refresh token received during logout") -> None:
-        super().__init__(message)
-
 class InvalidSessionTokenError(AuthenticationError):
 
     def __init__(self, message : str = "Invalid or expired session token") -> None:
+        super().__init__(message)
+
+class SessionCreationError(AuthenticationError):
+    def __init__(self, message: str = "Failed to create authentication session.") -> None:
         super().__init__(message)
