@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from core.logging_config import _get_logger
 from core.config import config
 from security.jwt import JWT
+from typing import Any
 from core.exception import (
     EmailAlreadyExistsError, 
     UsernameAlreadyExistsError,

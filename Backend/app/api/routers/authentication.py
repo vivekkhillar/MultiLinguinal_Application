@@ -18,7 +18,8 @@ from core.exception import (
     InvalidPreferredLanguageError,
     InvalidCredentialsError,
     AccountInactiveError,
-    InvalidSessionTokenError
+    InvalidSessionTokenError,
+    SessionCreationError
 )
 
 from core.logging_config import _get_logger
